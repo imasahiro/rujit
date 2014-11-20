@@ -98,6 +98,7 @@ COMMONOBJS    = array.$(OBJEXT) \
 		vm_dump.$(OBJEXT) \
 		vm_backtrace.$(OBJEXT) \
 		vm_trace.$(OBJEXT) \
+		jit.$(OBJEXT) \
 		thread.$(OBJEXT) \
 		cont.$(OBJEXT) \
 		$(BUILTIN_ENCOBJS) \
@@ -836,6 +837,34 @@ $(srcdir)/ext/rbconfig/sizeof/sizes.c: $(srcdir)/ext/rbconfig/sizeof/depend \
 	$(ECHO) generating $@
 	$(Q) $(CHDIR) $(@D) && $(exec) $(MAKE) -f depend $(MFLAGS) \
 		Q=$(Q) ECHO=$(ECHO) top_srcdir=../../.. srcdir=. VPATH=../../.. RUBY="$(BASERUBY)"
+
+jit.$(OBJEXT): {$(VPATH)}jit.c {$(VPATH)}jit.h {$(VPATH)}jit_cgen_cmd.h \
+	$(RUBY_H_INCLUDES) $(VM_CORE_H_INCLUDES) {$(VPATH)}vm_insnhelper.h \
+	{$(VPATH)}vm_exec.h {$(VPATH)}insns.def {$(VPATH)}vmtc.inc \
+	{$(VPATH)}vm.inc {$(VPATH)}insns.inc \
+	{$(VPATH)}internal.h {$(VPATH)}vm.h {$(VPATH)}constant.h \
+	$(PROBES_H_INCLUDES) {$(VPATH)}probes_helper.h {$(VPATH)}vm_opts.h \
+	{$(VPATH)}lir.c {$(VPATH)}yarv2lir.c \
+	{$(VPATH)}jit.h jit_prelude.c
+
+jit_prelude.c: $(srcdir)/tool/generic_erb.rb $(srcdir)/jit_prelude.rb
+	$(ECHO) generating $@
+	$(Q) $(BASERUBY) $(srcdir)/tool/generic_erb.rb -I$(srcdir) -o $@ \
+		$(srcdir)/template/prelude.c.tmpl $(srcdir)/jit_prelude.rb
+
+lir.c: $(srcdir)/lir.def $(srcdir)/lir.rb $(srcdir)/lir_template.h
+	$(ECHO) creating $@
+	$(Q) $(BASERUBY) "$(srcdir)/lir.rb" $(srcdir)/lir.def $(srcdir)/lir_template.h > $@
+
+yarv2lir.c: {$(VPATH)}lir.def $(srcdir)/yarv2lir.rb
+	$(ECHO) creating $@
+	$(Q) $(BASERUBY) "$(srcdir)/yarv2lir.rb" > $@
+
+jit_cgen_cmd.h: {$(VPATH)}ruby_jit.h {$(VPATH)}make_pch.rb \
+	{$(VPATH)}jit.c {$(VPATH)}jit.h \
+	{$(VPATH)}lir_template.h {$(VPATH)}vm_exec.h
+	$(PROBES_H_INCLUDES)
+	$(Q) $(BASERUBY) "$(srcdir)/make_pch.rb" . $(srcdir) $(CC) $(arch) > $@
 
 ##
 

@@ -1165,8 +1165,17 @@ jump
 ()
 ()
 {
+    VALUE *pc = GET_PC();
     RUBY_VM_CHECK_INTS(th);
     JUMP(dst);
+    if (dst < 0) {
+	int invoked = rujit_invoke_or_make_trace(th, GET_CFP(), pc, BIN(jump));
+	if (invoked) {
+	    RESTORE_REGS();
+	    SET_PC(REG_CFP->pc);
+	    TC_DISPATCH_ORIGN(__JIT__);
+	}
+    }
 }
 
 /**
@@ -1181,8 +1190,22 @@ branchif
 ()
 {
     if (RTEST(val)) {
+	VALUE *pc = GET_PC();
 	RUBY_VM_CHECK_INTS(th);
 	JUMP(dst);
+	if (dst < 0) {
+	    int invoked;
+	    PUSH(val);
+	    invoked = rujit_invoke_or_make_trace(th, GET_CFP(), pc, BIN(branchif));
+	    if (invoked) {
+		RESTORE_REGS();
+		SET_PC(REG_CFP->pc);
+		TC_DISPATCH_ORIGN(__JIT__);
+	    }
+	    else {
+		POPN(1);
+	    }
+	}
     }
 }
 
@@ -1198,8 +1221,22 @@ branchunless
 ()
 {
     if (!RTEST(val)) {
+	VALUE *pc = GET_PC();
 	RUBY_VM_CHECK_INTS(th);
 	JUMP(dst);
+	if (dst < 0) {
+	    int invoked;
+	    PUSH(val);
+	    invoked = rujit_invoke_or_make_trace(th, GET_CFP(), pc, BIN(branchunless));
+	    if (invoked) {
+		RESTORE_REGS();
+		SET_PC(REG_CFP->pc);
+		TC_DISPATCH_ORIGN(__JIT__);
+	    }
+	    else {
+		POPN(1);
+	    }
+	}
     }
 }
 
@@ -2203,6 +2240,23 @@ opt_call_c_function
 
     RESTORE_REGS();
     NEXT_INSN();
+}
+
+/**
+  @c optimize
+  @e invoke rujit compiler for recording hot path
+  @j RuJITコンパイラを起動
+ */
+DEFINE_INSN
+rectrace
+(VALUE dummy)
+()
+()
+{
+    SET_PC(GET_PC() - 2);
+    rujit_record_insn(th, GET_CFP(), GET_PC());
+    RESTORE_REGS();
+    TC_DISPATCH_ORIGN(rectrace);
 }
 
 /**

@@ -99,10 +99,12 @@ error !
 #if OPT_DIRECT_THREADED_CODE
 
 /* for GCC 3.4.x */
-#define TC_DISPATCH(insn) \
-  INSN_DISPATCH_SIG(insn); \
-  goto *(void const *)GET_CURRENT_INSN(); \
-  ;
+#define TC_DISPATCH(insn) do {\
+  void const *next_addr = (rujit_record_trace_mode) ? LABEL_PTR(rectrace) : (void const *)GET_CURRENT_INSN();\
+  goto *next_addr; \
+} while (0);
+
+#define TC_DISPATCH_ORIGN(insn) goto *(void const *)GET_CURRENT_INSN();
 
 #else
 /* token threaded code */
@@ -110,7 +112,8 @@ error !
 #define TC_DISPATCH(insn)  \
   DISPATCH_ARCH_DEPEND_WAY(insns_address_table[GET_CURRENT_INSN()]); \
   INSN_DISPATCH_SIG(insn); \
-  goto *insns_address_table[GET_CURRENT_INSN()]; \
+  if (rujit_record_trace_mode) goto LABEL(rectrace); \
+  else goto *insns_address_table[GET_CURRENT_INSN()]; \
   rb_bug("tc error");
 
 
