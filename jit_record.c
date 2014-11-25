@@ -7,6 +7,39 @@
   Copyright (C) 2014 Masahiro Ide
 
  **********************************************************************/
+#define EmitIR(OP, ...) Emit_##OP(rec, ##__VA_ARGS__)
+#define _POP() StackPop(rec)
+#define _PUSH(REG) StackPush(rec, REG)
+#define _TOPN(N) regstack_top(&(rec)->regstack, (int)(N))
+#define _SET(N, REG) regstack_set(&(rec)->regstack, (int)(N), REG)
+#define IS_Fixnum(V) FIXNUM_P(V)
+#define IS_Float(V) FLONUM_P(V)
+#define IS_String(V) (!SPECIAL_CONST_P(V) && (RBASIC_CLASS(V) == rb_cString))
+#define IS_Array(V) (!SPECIAL_CONST_P(V) && (RBASIC_CLASS(V) == rb_cArray))
+#define IS_Hash(V) (!SPECIAL_CONST_P(V) && (RBASIC_CLASS(V) == rb_cHash))
+
+typedef void jit_snapshot_t;
+static jit_snapshot_t *take_snapshot(trace_recorder_t *rec)
+{
+    return NULL;
+}
+static lir_t StackPop(trace_recorder_t *rec)
+{
+    int popped = 0;
+    lir_t Rval = regstack_pop(rec, &(rec)->regstack, &popped);
+    //if (popped == 0) {
+    //    EmitIR(StackPop);
+    //}
+    return Rval;
+}
+
+static void StackPush(trace_recorder_t *rec, lir_t Rval)
+{
+    regstack_push(rec, &(rec)->regstack, Rval);
+    // EmitIR(StackPush, Rval);
+}
+
+#if 0
 #define CREATE_BLOCK(REC, PC) trace_recorder_create_block(REC, PC)
 void
 vm_search_super_method(rb_thread_t *th, rb_control_frame_t *reg_cfp, rb_call_info_t *ci);
@@ -29,27 +62,6 @@ vm_search_super_method(rb_thread_t *th, rb_control_frame_t *reg_cfp, rb_call_inf
 	return;                                                      \
     } while (0)
 
-#define EmitIR(OP, ...) Emit_##OP(rec, ##__VA_ARGS__)
-#define _POP() StackPop(rec)
-#define _PUSH(REG) StackPush(rec, REG)
-#define _TOPN(N) regstack_top(&(rec)->regstack, (int)(N))
-#define _SET(N, REG) regstack_set(&(rec)->regstack, (int)(N), REG)
-
-static lir_t StackPop(trace_recorder_t *rec)
-{
-    int popped = 0;
-    lir_t Rval = regstack_pop(rec, &(rec)->regstack, &popped);
-    if (popped == 0) {
-	EmitIR(StackPop);
-    }
-    return Rval;
-}
-
-static void StackPush(trace_recorder_t *rec, lir_t Rval)
-{
-    regstack_push(rec, &(rec)->regstack, Rval);
-    EmitIR(StackPush, Rval);
-}
 
 static lir_t EmitLoadConst(trace_recorder_t *rec, VALUE val)
 {
@@ -1649,3 +1661,6 @@ static void record_insn(trace_recorder_t *rec, jit_event_t *e)
 	    assert(0 && "unreachable");
     }
 }
+#endif
+
+#include "r.c"
