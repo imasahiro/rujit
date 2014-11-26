@@ -844,7 +844,9 @@ jit.$(OBJEXT): {$(VPATH)}jit.c {$(VPATH)}jit.h {$(VPATH)}jit_cgen_cmd.h \
 	{$(VPATH)}vm.inc {$(VPATH)}insns.inc \
 	{$(VPATH)}internal.h {$(VPATH)}vm.h {$(VPATH)}constant.h \
 	$(PROBES_H_INCLUDES) {$(VPATH)}probes_helper.h {$(VPATH)}vm_opts.h \
-	{$(VPATH)}lir.c {$(VPATH)}yarv2lir.c \
+	{$(VPATH)}lir.c {$(VPATH)}jit_record.c \
+	{$(VPATH)}jit_codegen.c {$(VPATH)}jit_optimize.c \
+	{$(VPATH)}jit_record.c \
 	{$(VPATH)}jit.h jit_prelude.c
 
 jit_prelude.c: $(srcdir)/tool/generic_erb.rb $(srcdir)/jit_prelude.rb
@@ -859,6 +861,10 @@ lir.c: $(srcdir)/lir.def $(srcdir)/lir.rb $(srcdir)/lir_template.h
 yarv2lir.c: {$(VPATH)}lir.def $(srcdir)/yarv2lir.rb
 	$(ECHO) creating $@
 	$(Q) $(BASERUBY) "$(srcdir)/yarv2lir.rb" > $@
+
+bc2lir.c: {$(VPATH)}lir.def {$(VPATH)}bc2lir.rb
+	$(ECHO) creating $@
+	$(Q) $(BASERUBY) "$(srcdir)/bc2lir.rb" > $@
 
 jit_cgen_cmd.h: {$(VPATH)}ruby_jit.h {$(VPATH)}make_pch.rb \
 	{$(VPATH)}jit.c {$(VPATH)}jit.h \

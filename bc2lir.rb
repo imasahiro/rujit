@@ -131,11 +131,15 @@ class Yarv2Lir
     $indent_level += 1
     if type.kind_of? String
       type, mname = type.split(".")
-      puts "if (JIT_OP_UNREDEFINED_P(#{stringify(mname)}, #{type.upcase}_REDEFINED_OP_FLAG)) {"
-    else
-      puts "if (IS_#{type}(#{arg[0]})) {"
+      type = "#{type.upcase}_REDEFINED_OP_FLAG"
+      mname = stringify(mname)
+      puts "if (JIT_OP_UNREDEFINED_P(#{mname}, #{type})) {"
       print indent
-      puts emit "GuardType#{type}".to_sym, arg[0], arg[1]
+      puts emit "GuardMethodRedefine", "CURRENT_PC", mname, type
+    else
+      puts "if (IS_#{type}(#{arg[1]})) {"
+      print indent
+      puts emit "GuardType#{type}".to_sym, "CURRENT_PC", arg[0]
     end
     yield
     $indent_level -= 1
@@ -163,7 +167,7 @@ class Yarv2Lir
 
   def self.other(&block)
     print indent
-    puts "L_other: {"
+    puts "/*L_other:*/ {"
     $indent_level += 1
     yield
     $indent_level -= 1
@@ -172,12 +176,22 @@ class Yarv2Lir
   end
 
   def self.emit_get_prop recv
+    "emit_get_prop(rec, ci, #{recv.to_s});"
   end
 
   def self.emit_set_prop recv, obj
+    "emit_set_prop(rec, ci, #{recv.to_s}, #{obj.to_s});"
   end
 
-  def self.emit_call_method
+  def self.emit_call_method *arg
+    "emit_call_method(#{["rec", "ci", arg].flatten.map{|e| e.to_s }.join(", ")});"
+  end
+
+  def self.emit_load_const obj
+    if obj.kind_of? Fixnum
+      obj = "LONG2FIX(#{obj.to_s})"
+    end
+    "emit_load_const(rec, #{obj.to_s});"
   end
 
   class Local
@@ -213,16 +227,16 @@ class Yarv2Lir
   }
 
   match(:getlocal) {
-    local.a = operand :int, 1
-    local.b = operand :int, 2
-    local.v = emit :EnvLoad, local.a, local.b
+    local.idx = operand :int, 1
+    local.lev = operand :int, 2
+    local.v = emit :EnvLoad, local.lev, local.idx
     push local.v
   }
   match(:setlocal) {
-    local.a = operand :int, 1
-    local.b = operand :int, 2
+    local.idx = operand :int, 1
+    local.lev = operand :int, 2
     local.v = pop
-    local.result =emit :EnvStore, local.a, local.b, local.v
+    local.result = emit :EnvStore, local.lev, local.idx, local.v
   }
   # match(:getspecial)
   # match(:setspecial)
@@ -241,17 +255,40 @@ class Yarv2Lir
   match(:setglobal) {
     local.entry = operand :GENTRY, 1
     local.v = pop
-    local.result =emit :SetGlobal, local.entry, local.v
+    local.result = emit :SetGlobal, local.entry, local.v
   }
 
-  # match(:putnil)
-  # match(:putself)
-  # match(:putobject)
-  # match(:putspecialobject)
-  # match(:putiseq)
-  # match(:putstring)
-  # match(:concatstrings)
-  # match(:tostring)
+  match(:putnil) {
+    local.obj = emit_load_const("Qnil")
+    push local.obj
+  }
+
+  match(:putself) {
+    local.obj = emit :LoadSelf
+    push local.obj
+  }
+
+  match(:putobject) {
+    local.vobj = operand :VALUE, 1
+    local.obj = emit_load_const(local.vobj)
+    push local.obj
+  }
+
+  match(:putiseq) {
+    local.vobj = operand :VALUE, 1
+    local.obj = emit_load_const(local.vobj)
+    push local.obj
+  }
+  match(:putstring) {
+    local.vobj = operand :VALUE, 1
+    local.obj = emit_load_const(local.vobj)
+    push local.obj
+  }
+  match(:tostring) {
+    local.recv = pop
+    local.v = emit :ObjectToString, local.recv
+    push local.v
+  }
   # match(:toregexp)
   # match(:newarray)
   # match(:duparray)
@@ -260,20 +297,29 @@ class Yarv2Lir
   # match(:splatarray)
   # match(:newhash)
   # match(:newrange)
-  # match(:pop)
-  # match(:dup)
-  # match(:dupn)
-  # match(:swap)
-  # match(:reput)
-  # match(:topn)
-  # match(:setn)
-  # match(:adjuststack)
-  # match(:defined)
-  # match(:checkmatch)
-  # match(:checkkeyword)
-  # match(:trace)
-  # match(:defineclass)
-  # match(:send)
+  match(:pop) {
+    local.result = pop
+  }
+  match(:dup) {
+    local.obj = pop
+    push local.obj
+    push local.obj
+  }
+  match(:swap) {
+    local.obj1 = pop
+    local.obj2 = pop
+    push local.obj2
+    push local.obj1
+
+  }
+  match(:reput) {
+    local.obj = pop
+    push local.obj
+  }
+  match(:trace) {
+    local.flag = operand :rb_event_flag_t, 1
+    local.result = emit :Trace, local.flag
+  }
 
   match(:opt_str_freeze) {
     local.snapshot = take_snapshot
@@ -322,23 +368,23 @@ class Yarv2Lir
       }
       if_(:argc, 2) {
         local.obj = pop
+        local.vobj = topn(1)
         local.swap(local.recv, local.obj)
+        local.swap(local.vrecv, local.vobj)
         if_(:mid, "**") {
           guard("Fixnum.**") {
-            local.v = emit :FixnumPow, local.recv, local.obj
-            push local.v
-          }
-        }
-        if_(:mid, "**") {
-          guard("Fixnum.**") {
-            local.v = emit :FixnumPow, local.recv, local.obj
-            push local.v
-          }
-        }
-        if_(:mid, "**") {
-          guard("Fixnum.**") {
-            local.v = emit :FixnumPow, local.recv, local.obj
-            push local.v
+            guard(:Fixnum, local.obj, local.vobj) {
+              local.v = emit :FixnumPowOverflow, local.recv, local.obj
+              push local.v
+            }
+            # guard(:Float, local.obj, local.vobj) {
+            #   local.v = emit :FixnumPowOverflow, local.recv, local.obj
+            #   push local.v
+            # }
+            # guard(:Bignum, local.obj, local.vobj) {
+            #   local.v = emit :FixnumPowOverflow, local.recv, local.obj
+            #   push local.v
+            # }
           }
         }
         if_(:mid, "&") {
@@ -421,7 +467,7 @@ class Yarv2Lir
       if_(:mid, "to_f") {
         guard("String.to_f") {
           local.v = emit :StringToFloat, local.recv
-          push local.recv
+          push local.v
         }
       }
       if_(:mid, "to_s") {
@@ -445,8 +491,8 @@ class Yarv2Lir
         if_(:mid, "sin") {
           guard("Math.sin") {
             guard(:Fixnum, local.obj, local.vobj) {
-              local.v1 = emit :Fix2Float, local.obj
-              local.v = emit :MathSin, local.recv, local.v1
+              local.t = emit :FixnumToFloat, local.obj
+              local.v = emit :MathSin, local.recv, local.t
               push local.v
             }
             guard(:Float, local.obj, local.vobj) {
@@ -458,8 +504,8 @@ class Yarv2Lir
         if_(:mid, "cos") {
           guard("Math.cos") {
             guard(:Fixnum, local.obj, local.vobj) {
-              local.v1 = emit :Fix2Float, local.obj
-              local.v = emit :MathCos, local.recv, local.v1
+              local.t = emit :FixnumToFloat, local.obj
+              local.v = emit :MathCos, local.recv, local.t
               push local.v
             }
             guard(:Float, local.obj, local.vobj) {
@@ -471,8 +517,8 @@ class Yarv2Lir
         if_(:mid, "tan") {
           guard("Math.tan") {
             guard(:Fixnum, local.obj, local.vobj) {
-              local.v1 = emit :Fix2Float, local.obj
-              local.v = emit :MathTan, local.recv, local.v1
+              local.t = emit :FixnumToFloat, local.obj
+              local.v = emit :MathTan, local.recv, local.t
               push local.v
             }
             guard(:Float, local.obj, local.vobj) {
@@ -484,8 +530,8 @@ class Yarv2Lir
         if_(:mid, "exp") {
           guard("Math.exp") {
             guard(:Fixnum, local.obj, local.vobj) {
-              local.v1 = emit :Fix2Float, local.obj
-              local.v = emit :MathExp, local.recv, local.v1
+              local.t = emit :FixnumToFloat, local.obj
+              local.v = emit :MathExp, local.recv, local.t
               push local.v
             }
             guard(:Float, local.obj, local.vobj) {
@@ -497,8 +543,8 @@ class Yarv2Lir
         if_(:mid, "sqrt") {
           guard("Math.sqrt") {
             guard(:Fixnum, local.obj, local.vobj) {
-              local.v1 = emit :Fix2Float, local.obj
-              local.v = emit :MathSqrt_i, local.recv, local.v1
+              local.t = emit :FixnumToFloat, local.obj
+              local.v = emit :MathSqrt, local.recv, local.t
               push local.v
             }
             guard(:Float, local.obj, local.vobj) {
@@ -510,8 +556,8 @@ class Yarv2Lir
         if_(:mid, "log10") {
           guard("Math.log10") {
             guard(:Fixnum, local.obj, local.vobj) {
-              local.v1 = emit :Fix2Float, local.obj
-              local.v = emit :MathLog10, local.recv, local.v1
+              local.t = emit :FixnumToFloat, local.obj
+              local.v = emit :MathLog10, local.recv, local.t
               push local.v
             }
             guard(:Float, local.obj, local.vobj) {
@@ -523,8 +569,8 @@ class Yarv2Lir
         if_(:mid, "log2") {
           guard("Math.log2") {
             guard(:Fixnum, local.obj, local.vobj) {
-              local.v1 = emit :Fix2Float, local.obj
-              local.v = emit :MathLog2, local.recv, local.v1
+              local.t = emit :FixnumToFloat, local.obj
+              local.v = emit :MathLog2, local.recv, local.t
               push local.v
             }
             guard(:Float, local.obj, local.vobj) {
@@ -544,31 +590,45 @@ class Yarv2Lir
             push local.v
           }
         }
-        if_(:mid, "[]") {
-          guard("Array.[]") {
-            local.v = emit :ArrayGet, local.recv
-            push local.v
-          }
-        }
       }
       if_(:argc, 2) {
         local.obj = pop
+        local.vobj = topn(0)
         local.swap(local.recv, local.obj)
         if_(:mid, "[]") {
-          guard("Array.[]=") {
-            local.v = emit :ArraySet, local.recv, local.obj
-            push local.v
+          guard(:Fixnum, local.obj, local.vobj) {
+            guard("Array.[]") {
+              local.v = emit :ArrayGet, local.recv, local.obj
+              push local.v
+            }
+          }
+        }
+      }
+      if_(:argc, 3) {
+        local.idx = pop
+        local.obj = pop
+        local.vidx = topn(1)
+        local.swap(local.recv, local.idx)
+        if_(:mid, "[]=") {
+          guard(:Fixnum, local.idx, local.vidx) {
+            guard("Array.[]=") {
+              local.v = emit :ArraySet, local.recv, local.idx, local.obj
+              push local.v
+            }
           }
         }
       }
     }
+    if_(:argc, 1) {
+      # TODO   ["ObjectToString", "tostring", "", [:String]],
+    }
     if_(:method_type, :ivar) {
-      guard(:Object, local.recv, local.vrecv) {
-        local.v = emit_get_prop local.recv
+      guard(:Object, local.recv, local.vrecv, local.snapshot) {
+        local.result = emit_get_prop local.recv
       }
     }
     if_(:method_type, :attrset) {
-      guard(:Object, local.recv, local.vrecv) {
+      guard(:Object, local.recv, local.vrecv, local.snapshot) {
         local.obj = pop
         local.swap(local.recv, local.obj)
         local.v = emit_set_prop local.recv, local.obj
@@ -576,24 +636,13 @@ class Yarv2Lir
       }
     }
     other {
-      local.result =emit_call_method
+      local.result = emit_call_method
     }
   }
 
-  ## match(:invokesuper)
-  ## match(:invokeblock)
-  ## match(:leave)
-  ## match(:throw)
-  ## match(:jump)
-  ## match(:branchif)
-  ## match(:branchunless)
-  ## match(:getinlinecache)
-  ## match(:setinlinecache)
-  ## match(:once)
-  ## match(:opt_case_dispatch)
-
   match(:opt_plus) {
     local.snapshot = take_snapshot
+    local.ci = operand :CALL_INFO, 0
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -615,8 +664,8 @@ class Yarv2Lir
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
         guard("Float.+") {
-          local.obj  = emit :Fixnum2Float, local.obj
-          local.v = emit :FloatAdd, local.recv, local.obj
+          local.t = emit :FixnumToFloat, local.obj
+          local.v = emit :FloatAdd, local.recv, local.t
           push local.v
         }
       }
@@ -638,13 +687,14 @@ class Yarv2Lir
       }
     }
     other {
-      local.v = emit :CallMethod, local.recv, local.obj
+      local.v = emit_call_method
       push local.v
     }
   }
 
   match(:opt_minus) {
     local.snapshot = take_snapshot
+    local.ci = operand :CALL_INFO, 0
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -666,19 +716,20 @@ class Yarv2Lir
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
         guard("Float.-") {
-          local.obj  = emit :Fixnum2Float, local.obj
-          local.v = emit :FloatSub, local.recv, local.obj
+          local.t = emit :FixnumToFloat, local.obj
+          local.v = emit :FloatSub, local.recv, local.t
           push local.v
         }
       }
     }
     other {
-      local.v = emit :CallMethod, local.recv, local.obj
+      local.v = emit_call_method
       push local.v
     }
   }
   match(:opt_mult) {
     local.snapshot = take_snapshot
+    local.ci = operand :CALL_INFO, 0
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -700,20 +751,21 @@ class Yarv2Lir
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
         guard("Float.*") {
-          local.obj  = emit :Fixnum2Float, local.obj
-          local.v = emit :FloatMul, local.recv, local.obj
+          local.t = emit :FixnumToFloat, local.obj
+          local.v = emit :FloatMul, local.recv, local.t
           push local.v
         }
       }
     }
     other {
-      local.v = emit :CallMethod, local.recv, local.obj
+      local.v = emit_call_method
       push local.v
     }
   }
 
   match(:opt_div) {
     local.snapshot = take_snapshot
+    local.ci = operand :CALL_INFO, 0
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -726,7 +778,7 @@ class Yarv2Lir
         }
       }
     }
-    guard(:Float, local.vrecv, local.snapshot) {
+    guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
         guard("Float./") {
           local.v = emit :FloatDiv, local.recv, local.obj
@@ -735,20 +787,21 @@ class Yarv2Lir
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
         guard("Float./") {
-          local.obj  = emit :Fixnum2Float, local.obj
-          local.v = emit :FloatDiv, local.recv, local.obj
+          local.t = emit :FixnumToFloat, local.obj
+          local.v = emit :FloatDiv, local.recv, local.t
           push local.v
         }
       }
     }
     other {
-      local.v = emit :CallMethod, local.recv, local.obj
+      local.v = emit_call_method
       push local.v
     }
   }
 
   match(:opt_mod) {
     local.snapshot = take_snapshot
+    local.ci = operand :CALL_INFO, 0
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -761,7 +814,7 @@ class Yarv2Lir
         }
       }
     }
-    guard(:Float, local.vrecv, local.snapshot) {
+    guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
         guard("Float.%") {
           local.v = emit :FloatMod, local.recv, local.obj
@@ -770,19 +823,20 @@ class Yarv2Lir
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
         guard("Float.%") {
-          local.obj  = emit :Fixnum2Float, local.obj
-          local.v = emit :FloatMod, local.recv, local.obj
+          local.t = emit :FixnumToFloat, local.obj
+          local.v = emit :FloatMod, local.recv, local.t
           push local.v
         }
       }
     }
     other {
-      local.v = emit :CallMethod, local.recv, local.obj
+      local.v = emit_call_method
       push local.v
     }
   }
   match(:opt_eq) {
     local.snapshot = take_snapshot
+    local.ci = operand :CALL_INFO, 0
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -795,7 +849,7 @@ class Yarv2Lir
         }
       }
     }
-    guard(:Float, local.vrecv, local.snapshot) {
+    guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
         guard("Float.==") {
           local.v = emit :FloatEq, local.recv, local.obj
@@ -803,13 +857,15 @@ class Yarv2Lir
         }
       }
     }
+    # TODO   ["ObjectEq",  "opt_eq",  "==", [:_, :_]],
     other {
-      local.v = emit :CallMethod, local.recv, local.obj
+      local.v = emit_call_method
       push local.v
     }
   }
   match(:opt_neq) {
     local.snapshot = take_snapshot
+    local.ci = operand :CALL_INFO, 0
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -822,7 +878,7 @@ class Yarv2Lir
         }
       }
     }
-    guard(:Float, local.vrecv, local.snapshot) {
+    guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
         guard("Float.!=") {
           local.v = emit :FloatNe, local.recv, local.obj
@@ -830,13 +886,15 @@ class Yarv2Lir
         }
       }
     }
+    # TODO   ["ObjectNe",  "opt_neq", "!=", [:_, :_]],
     other {
-      local.v = emit :CallMethod, local.recv, local.obj
+      local.v = emit_call_method
       push local.v
     }
   }
   match(:opt_gt) {
     local.snapshot = take_snapshot
+    local.ci = operand :CALL_INFO, 0
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -849,7 +907,7 @@ class Yarv2Lir
         }
       }
     }
-    guard(:Float, local.vrecv, local.snapshot) {
+    guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
         guard("Float.>") {
           local.v = emit :FloatGt, local.recv, local.obj
@@ -858,12 +916,13 @@ class Yarv2Lir
       }
     }
     other {
-      local.v = emit :CallMethod, local.recv, local.obj
+      local.v = emit_call_method
       push local.v
     }
   }
   match(:opt_ge) {
     local.snapshot = take_snapshot
+    local.ci = operand :CALL_INFO, 0
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -876,7 +935,7 @@ class Yarv2Lir
         }
       }
     }
-    guard(:Float, local.vrecv, local.snapshot) {
+    guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
         guard("Float.>=") {
           local.v = emit :FloatGe, local.recv, local.obj
@@ -885,12 +944,13 @@ class Yarv2Lir
       }
     }
     other {
-      local.v = emit :CallMethod, local.recv, local.obj
+      local.v = emit_call_method
       push local.v
     }
   }
   match(:opt_lt) {
     local.snapshot = take_snapshot
+    local.ci = operand :CALL_INFO, 0
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -903,7 +963,7 @@ class Yarv2Lir
         }
       }
     }
-    guard(:Float, local.vrecv, local.snapshot) {
+    guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
         guard("Float.<") {
           local.v = emit :FloatLt, local.recv, local.obj
@@ -912,12 +972,13 @@ class Yarv2Lir
       }
     }
     other {
-      local.v = emit :CallMethod, local.recv, local.obj
+      local.v = emit_call_method
       push local.v
     }
   }
   match(:opt_le) {
     local.snapshot = take_snapshot
+    local.ci = operand :CALL_INFO, 0
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -930,7 +991,7 @@ class Yarv2Lir
         }
       }
     }
-    guard(:Float, local.vrecv, local.snapshot) {
+    guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
         guard("Float.<=") {
           local.v = emit :FloatLe, local.recv, local.obj
@@ -939,44 +1000,46 @@ class Yarv2Lir
       }
     }
     other {
-      local.v = emit :CallMethod, local.recv, local.obj
+      local.v = emit_call_method
       push local.v
     }
   }
   match(:opt_ltlt) {
     local.snapshot = take_snapshot
+    local.ci = operand :CALL_INFO, 0
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
     local.vrecv = topn(1)
-    guard(:String, local.vrecv, local.snapshot) {
-      guard(:String, local.vobj, local.snapshot) {
+    guard(:String, local.recv, local.vrecv, local.snapshot) {
+      guard(:String, local.obj, local.vobj, local.snapshot) {
         guard("String.<<") {
           local.v = emit :StringAdd, local.recv, local.obj
           push local.v
         }
       }
     }
-    guard(:Array, local.vrecv, local.snapshot) {
+    guard(:Array, local.recv, local.vrecv, local.snapshot) {
       guard("Array.<<") {
         local.v = emit :ArrayAdd, local.recv, local.obj
         push local.v
       }
     }
     other {
-      local.v = emit :CallMethod, local.recv, local.obj
+      local.v = emit_call_method
       push local.v
     }
   }
 
   match(:opt_aref) {
     local.snapshot = take_snapshot
+    local.ci = operand :CALL_INFO, 0
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
     local.vrecv = topn(1)
-    guard(:NonSpecialConst, local.vrecv, local.snapshot) {
-      guard(:Array, local.vrecv, local.snapshot) {
+    guard(:NonSpecialConst, local.recv, local.vrecv, local.snapshot) {
+      guard(:Array, local.recv, local.vrecv, local.snapshot) {
         guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
           guard("Array.[]") {
             local.v = emit :ArrayGet, local.recv, local.obj
@@ -984,9 +1047,7 @@ class Yarv2Lir
           }
         }
       }
-    }
-    guard(:NonSpecialConst, local.vrecv, local.snapshot) {
-      guard(:Hash, local.vrecv, local.snapshot) {
+      guard(:Hash, local.recv, local.vrecv, local.snapshot) {
         guard("Hash.[]") {
           local.v = emit :HashGet, local.recv, local.obj
           push local.v
@@ -994,17 +1055,19 @@ class Yarv2Lir
       }
     }
     other {
-      local.v = emit :CallMethod, local.recv, local.obj
+      local.v = emit_call_method
       push local.v
     }
   }
   match(:opt_aref_with) {
     local.snapshot = take_snapshot
-    local.recv = pop
-    local.obj  = operand :VALUE, 2
+    local.ci = operand :CALL_INFO, 0
+    local.vobj  = operand :VALUE, 2
     local.vrecv = topn(0)
-    guard(:NonSpecialConst, local.vrecv, local.snapshot) {
-      guard(:Array, local.vrecv, local.snapshot) {
+    local.recv = pop
+    local.obj  = emit_load_const(local.vobj)
+    guard(:NonSpecialConst, local.recv, local.vrecv, local.snapshot) {
+      guard(:Array, local.recv, local.vrecv, local.snapshot) {
         guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
           guard("Array.[]") {
             local.v = emit :ArrayGet, local.recv, local.obj
@@ -1012,9 +1075,7 @@ class Yarv2Lir
           }
         }
       }
-    }
-    guard(:NonSpecialConst, local.vrecv, local.snapshot) {
-      guard(:Hash, local.vrecv, local.snapshot) {
+      guard(:Hash, local.recv, local.vrecv, local.snapshot) {
         guard("Hash.[]") {
           local.v = emit :HashGet, local.recv, local.obj
           push local.v
@@ -1022,183 +1083,217 @@ class Yarv2Lir
       }
     }
     other {
-      local.v = emit :CallMethod, local.recv, local.obj
+      local.v = emit_call_method
       push local.v
     }
   }
   match(:opt_aset) {
     local.snapshot = take_snapshot
+    local.ci = operand :CALL_INFO, 0
     local.obj  = pop
+    local.idx  = pop
     local.recv = pop
-    local.vobj  = topn(0)
-    local.vrecv = topn(1)
-    guard(:NonSpecialConst, local.vrecv, local.snapshot) {
-      guard(:Array, local.vrecv, local.snapshot) {
-        guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
+    # local.vobj  = topn(0)
+    local.vidx  = topn(1)
+    local.vrecv = topn(2)
+    guard(:NonSpecialConst, local.recv, local.vrecv, local.snapshot) {
+      guard(:Array, local.recv, local.vrecv, local.snapshot) {
+        guard(:Fixnum, local.idx, local.vidx, local.snapshot) {
           guard("Array.[]=") {
-            local.v = emit :ArraySet, local.recv, local.obj
+            local.v = emit :ArraySet, local.recv, local.idx, local.obj
             push local.v
           }
         }
       }
-    }
-    guard(:NonSpecialConst, local.vrecv, local.snapshot) {
-      guard(:Hash, local.vrecv, local.snapshot) {
+      guard(:Hash, local.recv, local.vrecv, local.snapshot) {
         guard("Hash.[]=") {
-          local.v = emit :HashSet, local.recv, local.obj
+          local.v = emit :HashSet, local.recv, local.idx, local.obj
           push local.v
         }
       }
     }
     other {
-      local.v = emit :CallMethod, local.recv, local.obj
+      local.v = emit_call_method
       push local.v
     }
   }
   match(:opt_aset_with) {
     local.snapshot = take_snapshot
-    local.recv = pop
-    local.obj  = operand :VALUE, 2
+    local.ci = operand :CALL_INFO, 0
+    local.vidx  = operand :VALUE, 2
     local.vrecv = topn(0)
-    guard(:NonSpecialConst, local.vrecv, local.snapshot) {
-      guard(:Array, local.vrecv, local.snapshot) {
-        guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
+    local.obj  = pop
+    local.recv = pop
+    local.idx  = emit_load_const(local.vidx)
+    guard(:NonSpecialConst, local.recv, local.vrecv, local.snapshot) {
+      guard(:Array, local.recv, local.vrecv, local.snapshot) {
+        guard(:Fixnum, local.idx, local.vidx, local.snapshot) {
           guard("Array.[]=") {
-            local.v = emit :ArraySet, local.recv, local.obj
+            local.v = emit :ArraySet, local.recv, local.idx, local.obj
             push local.v
           }
         }
       }
-    }
-    guard(:NonSpecialConst, local.vrecv, local.snapshot) {
-      guard(:Hash, local.vrecv, local.snapshot) {
+      guard(:Hash, local.recv, local.vrecv, local.snapshot) {
         guard("Hash.[]=") {
-          local.v = emit :HashSet, local.recv, local.obj
+          local.v = emit :HashSet, local.recv, local.idx, local.obj
           push local.v
         }
       }
     }
     other {
-      local.v = emit :CallMethod, local.recv, local.obj
+      local.v = emit_call_method
       push local.v
     }
   }
   match(:opt_length) {
     local.snapshot = take_snapshot
+    local.ci = operand :CALL_INFO, 0
     local.recv = pop
     local.vrecv = topn(0)
-    guard(:String, local.vrecv, local.snapshot) {
+    guard(:String, local.recv, local.vrecv, local.snapshot) {
       guard("String.length") {
         local.v = emit :StringLength, local.recv
         push local.v
       }
     }
-    guard(:Array, local.vrecv, local.snapshot) {
+    guard(:Array, local.recv, local.vrecv, local.snapshot) {
       guard("Array.length") {
         local.v = emit :ArrayLength, local.recv
         push local.v
       }
     }
-    guard(:Hash, local.vrecv, local.snapshot) {
+    guard(:Hash, local.recv, local.vrecv, local.snapshot) {
       guard("Hash.length") {
         local.v = emit :HashLength, local.recv
         push local.v
       }
     }
     other {
-      local.v = emit :CallMethod, local.recv
+      local.v = emit_call_method
       push local.v
     }
   }
   match(:opt_size) {
     local.snapshot = take_snapshot
+    local.ci = operand :CALL_INFO, 0
     local.recv = pop
     local.vrecv = topn(0)
-    guard(:String, local.vrecv, local.snapshot) {
+    guard(:String, local.recv, local.vrecv, local.snapshot) {
       guard("String.size") {
         local.v = emit :StringLength, local.recv
         push local.v
       }
     }
-    guard(:Array, local.vrecv, local.snapshot) {
+    guard(:Array, local.recv, local.vrecv, local.snapshot) {
       guard("Array.size") {
         local.v = emit :ArrayLength, local.recv
         push local.v
       }
     }
-    guard(:Hash, local.vrecv, local.snapshot) {
+    guard(:Hash, local.recv, local.vrecv, local.snapshot) {
       guard("Hash.size") {
         local.v = emit :HashLength, local.recv
         push local.v
       }
     }
     other {
-      local.v = emit :CallMethod, local.recv
+      local.v = emit_call_method
       push local.v
     }
   }
   match(:opt_empty_p) {
     local.snapshot = take_snapshot
+    local.ci = operand :CALL_INFO, 0
     local.recv = pop
     local.vrecv = topn(0)
-    guard(:String, local.vrecv, local.snapshot) {
+    guard(:String, local.recv, local.vrecv, local.snapshot) {
       guard("String.empty?") {
         local.v = emit :StringEmptyP, local.recv
         push local.v
       }
     }
-    guard(:Array, local.vrecv, local.snapshot) {
+    guard(:Array, local.recv, local.vrecv, local.snapshot) {
       guard("Array.empty?") {
         local.v = emit :ArrayEmptyP, local.recv
         push local.v
       }
     }
-    guard(:Hash, local.vrecv, local.snapshot) {
+    guard(:Hash, local.recv, local.vrecv, local.snapshot) {
       guard("Hash.empty?") {
         local.v = emit :HashEmptyP, local.recv
         push local.v
       }
     }
     other {
-      local.v = emit :CallMethod, local.recv
+      local.v = emit_call_method
       push local.v
     }
   }
 
   # match(:opt_succ)
+  # TODO
   #    ["FixnumSucc",       "opt_succ",        "succ", [:Fixnum]],
   #    ["TimeSucc",    "opt_succ", "succ", [:Time]],
   # match(:opt_not)
-  # match(:opt_regexpmatch1)
-  # match(:opt_regexpmatch2)
+  # TODO
+  #    ["ObjectNot", "opt_not", "!",  [:_]],
+
+  match(:opt_regexpmatch1) {
+    local.snapshot = take_snapshot
+    local.ci = operand :CALL_INFO, 0
+    local.obj  = pop
+    local.recv = pop
+    guard("RegExp.=~") {
+      local.v = emit :RegExpMatch, local.recv, local.obj
+      push local.v
+    }
+    other {
+      local.v = emit_call_method
+      push local.v
+    }
+  }
+  match(:opt_regexpmatch2) {
+    local.snapshot = take_snapshot
+    local.ci = operand :CALL_INFO, 0
+    local.vobj = operand :VALUE, 1
+    local.obj  = emit_load_const(local.vobj)
+    local.recv = pop
+    guard("RegExp.=~") {
+      local.v = emit :RegExpMatch, local.recv, local.obj
+      push local.v
+    }
+    other {
+      local.v = emit_call_method
+      push local.v
+    }
+  }
   match(:getlocal_OP__WC__0) {
-    local.a = operand :int, 1
-    local.v = emit :EnvLoad, local.a, 0
+    local.idx = operand :int, 1
+    local.v = emit :EnvLoad, 0, local.idx
     push local.v
   }
   match(:getlocal_OP__WC__1) {
-    local.a = operand :int, 1
-    local.v = emit :EnvLoad, local.a, 1
+    local.idx = operand :int, 1
+    local.v = emit :EnvLoad, 1, local.idx
     push local.v
   }
   match(:setlocal_OP__WC__0) {
-    local.a = operand :int, 1
+    local.idx = operand :int, 1
     local.v = pop
-    local.result =emit :EnvStore, local.a, 0, local.v
+    local.result = emit :EnvStore, 0, local.idx, local.v
   }
   match(:setlocal_OP__WC__1) {
-    local.a = operand :int, 1
+    local.idx = operand :int, 1
     local.v = pop
-    local.result = emit :EnvStore, local.a, 1, local.v
+    local.result = emit :EnvStore, 1, local.idx, local.v
   }
-  # match(:putobject_OP_INT2FIX_O_0_C_)
-  # match(:putobject_OP_INT2FIX_O_1_C_)
-
-  #[
-  #    ["ObjectNot", "opt_not", "!",  [:_]],
-  #    ["ObjectNe",  "opt_neq", "!=", [:_, :_]],
-  #    ["ObjectEq",  "opt_eq",  "==", [:_, :_]],
-  #    ["RegExpMatch", "opt_regexpmatch1|opt_regexpmatch2", "=~", [:String, :Regexp]],
-  #    ["ObjectToString", "tostring", "", [:String]],
-  #];
+  match(:putobject_OP_INT2FIX_O_0_C_) {
+    local.obj = emit_load_const(0)
+    push local.obj
+  }
+  match(:putobject_OP_INT2FIX_O_1_C_) {
+    local.obj = emit_load_const(1)
+    push local.obj
+  }
 end

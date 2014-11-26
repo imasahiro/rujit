@@ -8,7 +8,7 @@
 
  **********************************************************************/
 
-static lir_t EmitLoadConst(trace_recorder_t *rec, VALUE val);
+static lir_t emit_load_const(trace_recorder_t *rec, VALUE val);
 #define BB_PUSH_FRAME (1 << 0)
 #define BB_POP_FRAME (1 << 1)
 
@@ -287,7 +287,7 @@ static lir_inst_t *fold_binop_fixnum2(trace_recorder_t *rec, lir_folder_t folder
     // const + const
     if (lop == OPCODE_ILoadConstFixnum && rop == OPCODE_ILoadConstFixnum) {
 	VALUE val = ((lir_folder2_t)folder)(LHS->Val, RHS->Val);
-	return EmitLoadConst(rec, val);
+	return emit_load_const(rec, val);
     }
     return inst;
 }
@@ -311,7 +311,7 @@ static lir_inst_t *fold_binop_float2(trace_recorder_t *rec, lir_folder_t folder,
     if (lop == OPCODE_ILoadConstFloat && rop == OPCODE_ILoadConstFloat) {
 	// FIXME need to insert GuardTypeFlonum?
 	VALUE val = ((lir_folder2_t)folder)(LHS->Val, RHS->Val);
-	return EmitLoadConst(rec, val);
+	return emit_load_const(rec, val);
     }
     return inst;
 }
@@ -351,21 +351,21 @@ static lir_inst_t *fold_binop_cast(trace_recorder_t *rec, lir_folder_t folder, l
 	case OPCODE_IFixnumToString:
 	    if (vopcode == OPCODE_ILoadConstFixnum) {
 		val = ((lir_folder1_t)folder)(Val->Val);
-		return EmitLoadConst(rec, val);
+		return emit_load_const(rec, val);
 	    }
 	    break;
 	case OPCODE_IFloatToFixnum:
 	case OPCODE_IFloatToString:
 	    if (vopcode == OPCODE_ILoadConstFloat) {
 		val = ((lir_folder1_t)folder)(Val->Val);
-		return EmitLoadConst(rec, val);
+		return emit_load_const(rec, val);
 	    }
 	    break;
 	case OPCODE_IStringToFixnum:
 	case OPCODE_IStringToFloat:
 	    if (vopcode == OPCODE_ILoadConstFloat) {
 		val = ((lir_folder1_t)folder)(Val->Val);
-		return EmitLoadConst(rec, val);
+		return emit_load_const(rec, val);
 	    }
 	    break;
 	case OPCODE_IObjectToString:
@@ -378,7 +378,7 @@ static lir_inst_t *fold_binop_cast(trace_recorder_t *rec, lir_folder_t folder, l
 		case OPCODE_ILoadConstString:
 		case OPCODE_ILoadConstRegexp:
 		    val = ((lir_folder1_t)folder)(Val->Val);
-		    return EmitLoadConst(rec, val);
+		    return emit_load_const(rec, val);
 		default:
 		    break;
 	    }
@@ -402,7 +402,7 @@ static lir_inst_t *fold_string_add(trace_recorder_t *rec, lir_folder_t folder, l
 	    if (lir_opcode(RHS) == OPCODE_ILoadConstString) {
 		ILoadConstString *rstr = (ILoadConstString *)RHS;
 		VALUE val = rb_str_plus(lstr->Val, rstr->Val);
-		lir_inst_t *tmp = EmitLoadConst(rec, val);
+		lir_inst_t *tmp = emit_load_const(rec, val);
 		return Emit_AllocString(rec, tmp);
 	    }
 	}

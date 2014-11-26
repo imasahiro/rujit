@@ -273,6 +273,15 @@ static void compile_inst(trace_recorder_t *Rec, CGen *gen, lir_inst_t *Inst)
 	case OPCODE_IGuardTypeSpecialConst: {
 	    IGuardTypeSpecialConst *ir = (IGuardTypeSpecialConst *)Inst;
 	    uintptr_t exit_block_id = (uintptr_t)ir->Exit;
+	    cgen_printf(gen, "if(!SPECIAL_CONST_P(v%ld)) {\n"
+	                     "  goto L_exit%ld;\n"
+	                     "}\n",
+	                lir_getid(ir->R), exit_block_id);
+	    break;
+	}
+	case OPCODE_IGuardTypeNonSpecialConst: {
+	    IGuardTypeSpecialConst *ir = (IGuardTypeSpecialConst *)Inst;
+	    uintptr_t exit_block_id = (uintptr_t)ir->Exit;
 	    cgen_printf(gen, "if(!!SPECIAL_CONST_P(v%ld)) {\n"
 	                     "  goto L_exit%ld;\n"
 	                     "}\n",
@@ -601,11 +610,11 @@ static void compile_inst(trace_recorder_t *Rec, CGen *gen, lir_inst_t *Inst)
 	    EMIT_CODE(gen, IFloatMod, Id, ir->LHS, ir->RHS);
 	    break;
 	}
-	//case OPCODE_IFloatPow: {
-	//    IFloatPow *ir = (IFloatPow *)Inst;
-	//    EMIT_CODE(gen, IFloatPow, Id, ir->LHS, ir->RHS);
-	//    break;
-	//}
+	case OPCODE_IFloatPow: {
+	    IFloatPow *ir = (IFloatPow *)Inst;
+	    EMIT_CODE(gen, IFloatPow, Id, ir->LHS, ir->RHS);
+	    break;
+	}
 	case OPCODE_IFloatNeg: {
 	    IFloatNeg *ir = (IFloatNeg *)Inst;
 	    EMIT_CODE1(gen, IFloatNeg, Id, ir->Recv);
