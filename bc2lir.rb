@@ -29,7 +29,11 @@ class Yarv2Lir
   end
 
   def self.emit(opname, *arg)
-    "EmitIR(#{[opname, *arg].map(&:to_s).join(', ')});"
+    if opname == :EnvLoad || opname == :EnvStore
+      "Emit#{opname.to_s}(#{["rec", *arg].map(&:to_s).join(', ')});"
+    else
+      "EmitIR(#{[opname, *arg].map(&:to_s).join(', ')});"
+    end
   end
 
   def self.operand(type, idx)

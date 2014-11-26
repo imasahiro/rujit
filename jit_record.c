@@ -33,7 +33,7 @@
 	return;                                                      \
     } while (0)
 
-typedef void jit_snapshot_t;
+typedef regstack_t jit_snapshot_t;
 
 static VALUE *get_current_pc(jit_event_t *e, jit_snapshot_t *snapshot)
 {
@@ -43,7 +43,8 @@ static VALUE *get_current_pc(jit_event_t *e, jit_snapshot_t *snapshot)
 
 static jit_snapshot_t *take_snapshot(trace_recorder_t *rec)
 {
-    return NULL;
+    jit_event_t *e = rec->current_event;
+    return trace_recorder_take_snapshot(rec, REG_PC, 0);
 }
 
 static lir_t emit_get_prop(trace_recorder_t *rec, CALL_INFO ci, lir_t recv)
@@ -182,6 +183,20 @@ static void EmitJump(trace_recorder_t *rec, VALUE *pc, int link)
     rec->cur_bb = bb;
 }
 
+static lir_t EmitEnvLoad(trace_recorder_t *rec, int level, int idx)
+{
+    lir_t Rval = EmitIR(EnvLoad, (int)level, (int)idx);
+    trace_recorder_set_localvar(rec, rec->cur_bb, (int)level, (int)idx, Rval);
+    return Rval;
+}
+
+static lir_t EmitEnvStore(trace_recorder_t *rec, int level, int idx, lir_t Rval)
+{
+    Rval = EmitIR(EnvStore, (int)level, (int)idx, Rval);
+    trace_recorder_set_localvar(rec, rec->cur_bb, (int)level, (int)idx, Rval);
+    return Rval;
+}
+
 #include "bc2lir.c"
 
 static void record_getspecial(trace_recorder_t *rec, jit_event_t *e)
@@ -216,47 +231,46 @@ static void record_setconstant(trace_recorder_t *rec, jit_event_t *e)
 
 static void record_getinstancevariable(trace_recorder_t *rec, jit_event_t *e)
 {
-    // IC ic = (IC)GET_OPERAND(2);
-    // ID id = (ID)GET_OPERAND(1);
-    // VALUE obj = GET_SELF();
-    //lir_t Rrecv = trace_recorder_set_self(rec, rec->cur_bb, EmitIR(LoadSelf));
+    IC ic = (IC)GET_OPERAND(2);
+    ID id = (ID)GET_OPERAND(1);
+    VALUE obj = GET_SELF();
+    lir_t Rrecv = trace_recorder_set_self(rec, rec->cur_bb, EmitIR(LoadSelf));
 
-    //if (vm_load_cache(obj, id, ic, NULL, 0)) {
-    //    size_t index = ic->ic_value.index;
-    //    trace_recorder_take_snapshot(rec, REG_PC, 0);
-    //    EmitIR(GuardTypeObject, REG_PC, Rrecv);
-    //    EmitIR(GuardProperty, REG_PC, Rrecv, 0 /*!is_attr*/, id, index, ic->ic_serial);
-    //    _PUSH(EmitIR(GetPropertyName, Rrecv, index));
-    //    return;
-    //}
+    if (vm_load_cache(obj, id, ic, NULL, 0)) {
+	size_t index = ic->ic_value.index;
+	trace_recorder_take_snapshot(rec, REG_PC, 0);
+	EmitIR(GuardTypeObject, REG_PC, Rrecv);
+	EmitIR(GuardProperty, REG_PC, Rrecv, 0 /*!is_attr*/, id, index, ic->ic_serial);
+	_PUSH(EmitIR(GetPropertyName, Rrecv, index));
+	return;
+    }
     not_support_op(rec, e, "getinstancevariable");
 }
 
 static void record_setinstancevariable(trace_recorder_t *rec, jit_event_t *e)
 {
-    // IC ic = (IC)GET_OPERAND(2);
-    // ID id = (ID)GET_OPERAND(1);
-    // VALUE val = TOPN(0);
-    // VALUE obj = GET_SELF();
-    //lir_t Rrecv = trace_recorder_set_self(rec, rec->cur_bb, EmitIR(LoadSelf));
+    IC ic = (IC)GET_OPERAND(2);
+    ID id = (ID)GET_OPERAND(1);
+    VALUE val = TOPN(0);
+    VALUE obj = GET_SELF();
+    lir_t Rrecv = trace_recorder_set_self(rec, rec->cur_bb, EmitIR(LoadSelf));
 
-    //int cacheable = vm_load_or_insert_ivar(obj, id, val, ic, NULL, 0);
-    //if (cacheable) {
-    //    lir_t Rval;
-    //    size_t index = ic->ic_value.index;
-    //    trace_recorder_take_snapshot(rec, REG_PC, 0);
-    //    EmitIR(GuardTypeObject, REG_PC, Rrecv);
-    //    EmitIR(GuardProperty, REG_PC, Rrecv, 0 /*!is_attr*/, id, index, ic->ic_serial);
-    //    Rval = _POP();
-    //    if (cacheable == 1) {
-    //        EmitIR(SetPropertyName, Rrecv, 0, ic->ic_value.index, Rval);
-    //    }
-    //    else {
-    //        EmitIR(SetPropertyName, Rrecv, (long)id, ic->ic_value.index, Rval);
-    //    }
-    //    return;
-    //}
-
+    int cacheable = vm_load_or_insert_ivar(obj, id, val, ic, NULL, 0);
+    if (cacheable) {
+	lir_t Rval;
+	size_t index = ic->ic_value.index;
+	trace_recorder_take_snapshot(rec, REG_PC, 0);
+	EmitIR(GuardTypeObject, REG_PC, Rrecv);
+	EmitIR(GuardProperty, REG_PC, Rrecv, 0 /*!is_attr*/, id, index, ic->ic_serial);
+	Rval = _POP();
+	if (cacheable == 1) {
+	    EmitIR(SetPropertyName, Rrecv, 0, ic->ic_value.index, Rval);
+	}
+	else {
+	    EmitIR(SetPropertyName, Rrecv, (long)id, ic->ic_value.index, Rval);
+	}
+	return;
+    }
     not_support_op(rec, e, "setinstancevariable");
 }
 
@@ -541,25 +555,25 @@ static void record_send(trace_recorder_t *rec, jit_event_t *e)
 
 static void record_invokesuper(trace_recorder_t *rec, jit_event_t *e)
 {
-    asm volatile("int3");
-    //CALL_INFO ci = (CALL_INFO)GET_OPERAND(1);
-    //lir_t Rblock = 0;
-    //rb_block_t *block = NULL;
+    CALL_INFO ci = (CALL_INFO)GET_OPERAND(1);
+    lir_t Rblock = 0;
+    rb_block_t *block = NULL;
 
-    //ci->argc = ci->orig_argc;
-    //// ci->blockptr = !(ci->flag & VM_CALL_ARGS_BLOCKARG) ? GET_BLOCK_PTR() : 0;
-    //if (UNLIKELY(ci->flag & VM_CALL_ARGS_BLOCKARG)) {
-    //    not_support_op(rec, e, "invokesuper");
-    //    return;
-    //}
-    //else if (ci->blockiseq != 0) {
-    //    ci->blockptr = RUBY_VM_GET_BLOCK_PTR_IN_CFP(REG_CFP);
-    //    ci->blockptr->iseq = ci->blockiseq;
-    //    ci->blockptr->proc = 0;
-    //    Rblock = EmitIR(LoadSelfAsBlock, ci->blockiseq);
-    //    block = ci->blockptr;
-    //}
-    //trace_recorder_take_snapshot(rec, REG_PC, 0);
+    ci->argc = ci->orig_argc;
+    // ci->blockptr = !(ci->flag & VM_CALL_ARGS_BLOCKARG) ? GET_BLOCK_PTR() : 0;
+    if (UNLIKELY(ci->flag & VM_CALL_ARGS_BLOCKARG)) {
+	not_support_op(rec, e, "invokesuper");
+	return;
+    }
+    else if (ci->blockiseq != 0) {
+	ci->blockptr = RUBY_VM_GET_BLOCK_PTR_IN_CFP(REG_CFP);
+	ci->blockptr->iseq = ci->blockiseq;
+	ci->blockptr->proc = 0;
+	Rblock = EmitIR(LoadSelfAsBlock, ci->blockiseq);
+	block = ci->blockptr;
+    }
+    trace_recorder_take_snapshot(rec, REG_PC, 0);
+    asm volatile("int3");
     //EmitMethodCall(rec, e, ci, block, Rblock, 1);
 }
 
@@ -703,7 +717,7 @@ static void record_getinlinecache(trace_recorder_t *rec, jit_event_t *e)
 {
     IC ic = (IC)GET_OPERAND(2);
     if (ic->ic_serial != GET_GLOBAL_CONSTANT_STATE()) {
-	// hmm, constant value is re-defined.
+	// constant value is re-defined.
 	not_support_op(rec, e, "getinlinecache");
 	return;
     }

@@ -487,7 +487,7 @@ static void trace_recorder_disable_cache(trace_recorder_t *recorder)
     recorder->cache_pool.size = recorder->cache_max;
 }
 
-static void trace_recorder_take_snapshot(trace_recorder_t *rec, VALUE *pc, int force_exit)
+static regstack_t *trace_recorder_take_snapshot(trace_recorder_t *rec, VALUE *pc, int force_exit)
 {
     basicblock_t *bb = rec->cur_bb;
     regstack_t *stack = NULL;
@@ -498,7 +498,7 @@ static void trace_recorder_take_snapshot(trace_recorder_t *rec, VALUE *pc, int f
 	    if (JIT_DEBUG_VERBOSE > 2) {
 		fprintf(stderr, "snapshot is already copied\n");
 	    }
-	    return;
+	    return stack;
 	}
 	if (JIT_DEBUG_VERBOSE > 2) {
 	    fprintf(stderr, "rewrite snapshot old=%p, old_pc=%p, pc=%p\n",
@@ -520,6 +520,7 @@ static void trace_recorder_take_snapshot(trace_recorder_t *rec, VALUE *pc, int f
     }
     jit_list_add(&bb->stack_map, (uintptr_t)pc);
     jit_list_add(&bb->stack_map, (uintptr_t)stack);
+    return stack;
 }
 
 static unsigned trace_recorder_get_side_exit(trace_recorder_t *rec, VALUE *pc, regstack_t **map)
@@ -1294,44 +1295,6 @@ static int already_recorded_on_trace(jit_event_t *e)
     return 0;
 }
 
-// yarv2lir.c
-static int is_tracable_special_inst(int opcode, CALL_INFO ci);
-
-static int is_tracable_call_inst(jit_event_t *e)
-{
-    CALL_INFO ci = NULL;
-    if (e->opcode != BIN(send) && e->opcode != BIN(opt_send_without_block)) {
-	return 1;
-    }
-
-    ci = (CALL_INFO)GET_OPERAND(1);
-    vm_search_method(ci, ci->recv = TOPN(ci->argc));
-    if (ci->me) {
-	switch (ci->me->def->type) {
-	    case VM_METHOD_TYPE_IVAR:
-	    case VM_METHOD_TYPE_ATTRSET:
-	    case VM_METHOD_TYPE_ISEQ:
-		return 1;
-	    default:
-		break;
-	}
-    }
-
-    /* check Class.A.new(argc, argv) */
-    if (check_cfunc(ci->me, rb_class_new_instance) && ci->me->klass == rb_cClass) {
-	return 1;
-    }
-    /* check block_given? */
-    if (check_cfunc(ci->me, rb_f_block_given_p)) {
-	return 1;
-    }
-
-    if (is_tracable_special_inst(e->opcode, ci)) {
-	return 1;
-    }
-    return 0;
-}
-
 static int is_irregular_event(jit_event_t *e)
 {
     return e->opcode == BIN(throw);
@@ -1352,15 +1315,11 @@ static int is_end_of_trace(trace_recorder_t *recorder, jit_event_t *e)
 	Emit_Exit(recorder, e->pc);
 	return 1;
     }
-    if (!is_tracable_call_inst(e)) {
-	e->reason = TRACE_ERROR_NATIVE_METHOD;
-	trace_recorder_take_snapshot(recorder, REG_PC, 1);
-	if (JIT_DEBUG_VERBOSE) {
-	    TRACE_LOG(e, "[file:%s line:%d] exit trace : can not include native method\n");
-	}
-	Emit_Exit(recorder, e->pc);
-	return 1;
-    }
+    //if (!is_tracable_call_inst(e)) {
+    //    e->reason = TRACE_ERROR_NATIVE_METHOD;
+    //    trace_recorder_take_snapshot(recorder, REG_PC, 1);
+    //    return 1;
+    //}
     if (is_irregular_event(e)) {
 	e->reason = TRACE_ERROR_THROW;
 	trace_recorder_take_snapshot(recorder, REG_PC, 1);
