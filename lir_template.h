@@ -217,19 +217,19 @@ static inline VALUE rb_jit_exec_IFloatNe(VALUE arg0, VALUE arg1)
 }
 static inline VALUE rb_jit_exec_IFloatGt(VALUE arg0, VALUE arg1)
 {
-    return (RFLOAT_VALUE(arg0) < RFLOAT_VALUE(arg1)) ? Qtrue : Qfalse;
+    return (RFLOAT_VALUE(arg0) > RFLOAT_VALUE(arg1)) ? Qtrue : Qfalse;
 }
 static inline VALUE rb_jit_exec_IFloatGe(VALUE arg0, VALUE arg1)
 {
-    return (RFLOAT_VALUE(arg0) <= RFLOAT_VALUE(arg1)) ? Qtrue : Qfalse;
+    return (RFLOAT_VALUE(arg0) >= RFLOAT_VALUE(arg1)) ? Qtrue : Qfalse;
 }
 static inline VALUE rb_jit_exec_IFloatLt(VALUE arg0, VALUE arg1)
 {
-    return (RFLOAT_VALUE(arg0) > RFLOAT_VALUE(arg1)) ? Qtrue : Qfalse;
+    return (RFLOAT_VALUE(arg0) < RFLOAT_VALUE(arg1)) ? Qtrue : Qfalse;
 }
 static inline VALUE rb_jit_exec_IFloatLe(VALUE arg0, VALUE arg1)
 {
-    return (RFLOAT_VALUE(arg0) >= RFLOAT_VALUE(arg1)) ? Qtrue : Qfalse;
+    return (RFLOAT_VALUE(arg0) <= RFLOAT_VALUE(arg1)) ? Qtrue : Qfalse;
 }
 static inline VALUE rb_jit_exec_IFixnumToFloat(VALUE arg0)
 {

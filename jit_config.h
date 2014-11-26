@@ -20,7 +20,7 @@
 //#define DUMP_LLVM_IR   0 /* 0:disable, 1:dump, 2:dump non-optimized llvm ir */
 #define DUMP_INST 0 /* 0:disable, 1:dump */
 #define DUMP_LIR 1 /* 0:disable, 1:dump */
-// #define DUMP_LIR_DUMP_VALUE_AS_STRING 1
+#define DUMP_LIR_DUMP_VALUE_AS_STRING 0
 #define DUMP_CALL_STACK_MAP 0 /* 0:disable, 1:dump */
 
 #define JIT_DUMP_COMPILE_LOG 1 /* 0:disable, 1:dump, 2:verbose */
@@ -29,7 +29,7 @@
 #define LIR_TRACE_INIT_SIZE 16 /* initial size of trace */
 #define LIR_RESERVED_REGSTACK_SIZE 8
 
-#define JIT_DEBUG_VERBOSE 1 /* 0:disable, 1: emit log, 2: verbose, 10: */
+#define JIT_DEBUG_VERBOSE 2 /* 0:disable, 1: emit log, 2: verbose, 10: */
 #define JIT_DEBUG_TRACE 1
 #define JIT_LOG_SIDE_EXIT 1 /* 0:disable, 1: emit log if side exit occured */
 

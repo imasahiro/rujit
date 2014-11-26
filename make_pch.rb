@@ -3,7 +3,7 @@
 source_dir = "."
 target_dir = "build"
 debug_mode = !true
-debug_mode = true
+# debug_mode = true
 cc         = "clang"
 arch       = "x86_64-darwin13"
 

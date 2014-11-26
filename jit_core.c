@@ -669,7 +669,7 @@ static lir_t basicblock_get_next(basicblock_t *bb, lir_t inst)
 #define FMT_LirPtr "%04ld"
 #define FMT_ID "%04ld"
 #define FMT_SPECIAL_VALUE "0x%lx"
-#ifdef DUMP_LIR_DUMP_VALUE_AS_STRING
+#if DUMP_LIR_DUMP_VALUE_AS_STRING
 #define FMT_VALUE "%s"
 #else
 #define FMT_VALUE "%lx"
@@ -689,7 +689,7 @@ static lir_t basicblock_get_next(basicblock_t *bb, lir_t inst)
 #define DATA_long(V) (V)
 #define DATA_lir_t(V) (lir_getid_null(V))
 #define DATA_LirPtr(V) (lir_getid(*(V)))
-#ifdef DUMP_LIR_DUMP_VALUE_AS_STRING
+#if DUMP_LIR_DUMP_VALUE_AS_STRING
 #define DATA_VALUE(V) (RSTRING_PTR(rb_any_to_s(V)))
 // #define DATA_VALUE(V) (RSTRING_PTR(rb_sprintf("<%" PRIsVALUE ">", V)))
 #else
