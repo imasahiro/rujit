@@ -8,6 +8,7 @@ class LValue
     @name = name
     @type = type
   end
+
   def to_s
     @name
   end
@@ -15,136 +16,136 @@ end
 
 class Yarv2Lir
   def self.match(op, &block)
-    puts "static void record_#{op.to_s}(trace_recorder_t *rec, jit_event_t *e)"
-    puts "{"
+    puts "static void record_#{op}(trace_recorder_t *rec, jit_event_t *e)"
+    puts '{'
     $indent_level += 1
     yield
     $indent_level -= 1
-    puts "}"
+    puts '}'
   end
 
   def self.indent
-    "  " * $indent_level
+    '  ' * $indent_level
   end
 
   def self.emit(opname, *arg)
-    "EmitIR(#{[opname, *arg].map{|e| e.to_s}.join(", ")});"
+    "EmitIR(#{[opname, *arg].map(&:to_s).join(', ')});"
   end
 
-  def self.operand type, idx
+  def self.operand(type, idx)
     LValue.new("(#{type})GET_OPERAND(#{idx});", type)
   end
 
   def self.take_snapshot
-    "take_snapshot(rec);"
+    'take_snapshot(rec);'
   end
 
   def self.pop
-    "_POP();"
+    '_POP();'
   end
 
-  def self.topn idx
+  def self.topn(idx)
     "TOPN(#{idx});"
   end
 
   def self.to_mid(sym)
-    return "idPLUS"      if sym == '+'
-    return "idMINUS"     if sym == '-'
-    return "idMULT"      if sym == '*'
-    return "idDIV"       if sym == '/'
-    return "idMOD"       if sym == '%'
-    return "idPow"       if sym == '**'
-    return "idLT"        if sym == '<'
-    return "idLTLT"      if sym == '<<'
-    return "idLE"        if sym == '<='
-    return "idGT"        if sym == '>'
-    return "idGE"        if sym == '>='
-    return "idEq"        if sym == '=='
-    return "idNeq"       if sym == '!='
-    return "idNot"       if sym == '!'
-    return "idNot"       if sym == "not";
-    return "idAREF"      if sym == "[]"
-    return "idASET"      if sym == "[]="
-    return "idLength"    if sym == "length"
-    return "idSize"      if sym == "size"
-    return "idEmptyP"    if sym == "empty?"
-    return "idSucc"      if sym == "succ"
-    return "idEqTilde"   if sym == "=~"
-    return "rb_intern(\"#{sym}\")"
+    return 'idPLUS'      if sym == '+'
+    return 'idMINUS'     if sym == '-'
+    return 'idMULT'      if sym == '*'
+    return 'idDIV'       if sym == '/'
+    return 'idMOD'       if sym == '%'
+    return 'idPow'       if sym == '**'
+    return 'idLT'        if sym == '<'
+    return 'idLTLT'      if sym == '<<'
+    return 'idLE'        if sym == '<='
+    return 'idGT'        if sym == '>'
+    return 'idGE'        if sym == '>='
+    return 'idEq'        if sym == '=='
+    return 'idNeq'       if sym == '!='
+    return 'idNot'       if sym == '!'
+    return 'idNot'       if sym == 'not'
+    return 'idAREF'      if sym == '[]'
+    return 'idASET'      if sym == '[]='
+    return 'idLength'    if sym == 'length'
+    return 'idSize'      if sym == 'size'
+    return 'idEmptyP'    if sym == 'empty?'
+    return 'idSucc'      if sym == 'succ'
+    return 'idEqTilde'   if sym == '=~'
+    "rb_intern(\"#{sym}\")"
   end
 
   def self.stringify(sym)
-    return "JIT_BOP_PLUS"      if sym == '+'
-    return "JIT_BOP_MINUS"     if sym == '-'
-    return "JIT_BOP_MULT"      if sym == '*'
-    return "JIT_BOP_DIV"       if sym == '/'
-    return "JIT_BOP_MOD"       if sym == '%'
-    return "JIT_BOP_POW"       if sym == '**'
-    return "JIT_BOP_LT"        if sym == '<'
-    return "JIT_BOP_LTLT"      if sym == '<<'
-    return "JIT_BOP_LE"        if sym == '<='
-    return "JIT_BOP_GT"        if sym == '>'
-    return "JIT_BOP_GE"        if sym == '>='
-    return "JIT_BOP_EQ"        if sym == '=='
-    return "JIT_BOP_NEQ"       if sym == '!='
-    return "JIT_BOP_NOT"       if sym == '!'
-    return "JIT_BOP_NOT"       if sym == "not";
-    return "JIT_BOP_AREF"      if sym == "[]"
-    return "JIT_BOP_ASET"      if sym == "[]="
-    return "JIT_BOP_LENGTH"    if sym == "length"
-    return "JIT_BOP_SIZE"      if sym == "size"
-    return "JIT_BOP_EMPTY_P"   if sym == "empty?"
-    return "JIT_BOP_SUCC"      if sym == "succ"
-    return "JIT_BOP_MATCH"     if sym == "=~"
-    return "JIT_BOP_FREEZE"    if sym == "freeze"
+    return 'JIT_BOP_PLUS'      if sym == '+'
+    return 'JIT_BOP_MINUS'     if sym == '-'
+    return 'JIT_BOP_MULT'      if sym == '*'
+    return 'JIT_BOP_DIV'       if sym == '/'
+    return 'JIT_BOP_MOD'       if sym == '%'
+    return 'JIT_BOP_POW'       if sym == '**'
+    return 'JIT_BOP_LT'        if sym == '<'
+    return 'JIT_BOP_LTLT'      if sym == '<<'
+    return 'JIT_BOP_LE'        if sym == '<='
+    return 'JIT_BOP_GT'        if sym == '>'
+    return 'JIT_BOP_GE'        if sym == '>='
+    return 'JIT_BOP_EQ'        if sym == '=='
+    return 'JIT_BOP_NEQ'       if sym == '!='
+    return 'JIT_BOP_NOT'       if sym == '!'
+    return 'JIT_BOP_NOT'       if sym == 'not'
+    return 'JIT_BOP_AREF'      if sym == '[]'
+    return 'JIT_BOP_ASET'      if sym == '[]='
+    return 'JIT_BOP_LENGTH'    if sym == 'length'
+    return 'JIT_BOP_SIZE'      if sym == 'size'
+    return 'JIT_BOP_EMPTY_P'   if sym == 'empty?'
+    return 'JIT_BOP_SUCC'      if sym == 'succ'
+    return 'JIT_BOP_MATCH'     if sym == '=~'
+    return 'JIT_BOP_FREEZE'    if sym == 'freeze'
 
-    return "JIT_BOP_NEG"       if sym == '-@'
-    return "JIT_BOP_AND"       if sym == '&'
-    return "JIT_BOP_OR"        if sym == '|'
-    return "JIT_BOP_XOR"       if sym == '^'
-    return "JIT_BOP_INV"       if sym == '~'
-    return "JIT_BOP_RSHIFT"    if sym == '>>'
+    return 'JIT_BOP_NEG'       if sym == '-@'
+    return 'JIT_BOP_AND'       if sym == '&'
+    return 'JIT_BOP_OR'        if sym == '|'
+    return 'JIT_BOP_XOR'       if sym == '^'
+    return 'JIT_BOP_INV'       if sym == '~'
+    return 'JIT_BOP_RSHIFT'    if sym == '>>'
 
-    return "JIT_BOP_TO_F"    if sym == 'to_f'
-    return "JIT_BOP_TO_I"    if sym == 'to_i'
-    return "JIT_BOP_TO_S"    if sym == 'to_s'
+    return 'JIT_BOP_TO_F'    if sym == 'to_f'
+    return 'JIT_BOP_TO_I'    if sym == 'to_i'
+    return 'JIT_BOP_TO_S'    if sym == 'to_s'
     # math
-    return "JIT_BOP_SIN"       if sym == 'sin'
-    return "JIT_BOP_COS"       if sym == 'cos'
-    return "JIT_BOP_TAN"       if sym == 'tan'
-    return "JIT_BOP_EXPR"      if sym == 'expr'
-    return "JIT_BOP_SQRT"      if sym == 'sqrt'
-    return "JIT_BOP_LOG2"      if sym == 'log2'
-    return "JIT_BOP_LOG10"     if sym == 'log10'
-    return "JIT_BOP_" + sym.upcase
+    return 'JIT_BOP_SIN'       if sym == 'sin'
+    return 'JIT_BOP_COS'       if sym == 'cos'
+    return 'JIT_BOP_TAN'       if sym == 'tan'
+    return 'JIT_BOP_EXPR'      if sym == 'expr'
+    return 'JIT_BOP_SQRT'      if sym == 'sqrt'
+    return 'JIT_BOP_LOG2'      if sym == 'log2'
+    return 'JIT_BOP_LOG10'     if sym == 'log10'
+    'JIT_BOP_' + sym.upcase
   end
 
-  def self.push val
+  def self.push(val)
     print indent
-    puts "_PUSH(#{val.to_s});"
+    puts "_PUSH(#{val});"
     print indent
-    puts "return;"
+    puts 'return;'
   end
 
   def self.guard(type, *arg, &block)
     print indent
     $indent_level += 1
-    if type.kind_of? String
-      type, mname = type.split(".")
+    if type.is_a? String
+      type, mname = type.split('.')
       type = "#{type.upcase}_REDEFINED_OP_FLAG"
       mname = stringify(mname)
       puts "if (JIT_OP_UNREDEFINED_P(#{mname}, #{type})) {"
       print indent
-      puts emit "GuardMethodRedefine", "CURRENT_PC", mname, type
+      puts emit 'GuardMethodRedefine', 'CURRENT_PC', mname, type
     else
       puts "if (IS_#{type}(#{arg[1]})) {"
       print indent
-      puts emit "GuardType#{type}".to_sym, "CURRENT_PC", arg[0]
+      puts emit "GuardType#{type}".to_sym, 'CURRENT_PC', arg[0]
     end
     yield
     $indent_level -= 1
     print indent
-    puts "}"
+    puts '}'
   end
 
   def self.if_(type, val, &block)
@@ -162,52 +163,52 @@ class Yarv2Lir
     yield
     $indent_level -= 1
     print indent
-    puts "}"
+    puts '}'
   end
 
   def self.other(&block)
     print indent
-    puts "/*L_other:*/ {"
+    puts '/*L_other:*/ {'
     $indent_level += 1
     yield
     $indent_level -= 1
     print indent
-    puts "}"
+    puts '}'
   end
 
-  def self.emit_get_prop recv
-    "emit_get_prop(rec, ci, #{recv.to_s});"
+  def self.emit_get_prop(recv)
+    "emit_get_prop(rec, ci, #{recv});"
   end
 
-  def self.emit_set_prop recv, obj
-    "emit_set_prop(rec, ci, #{recv.to_s}, #{obj.to_s});"
+  def self.emit_set_prop(recv, obj)
+    "emit_set_prop(rec, ci, #{recv}, #{obj});"
   end
 
-  def self.emit_call_method *arg
-    "emit_call_method(#{["rec", "ci", arg].flatten.map{|e| e.to_s }.join(", ")});"
+  def self.emit_call_method(*arg)
+    "emit_call_method(#{['rec', 'ci', arg].flatten.map(&:to_s).join(', ')});"
   end
 
-  def self.emit_load_const obj
-    if obj.kind_of? Fixnum
-      obj = "LONG2FIX(#{obj.to_s})"
+  def self.emit_load_const(obj)
+    if obj.is_a? Fixnum
+      obj = "LONG2FIX(#{obj})"
     end
-    "emit_load_const(rec, #{obj.to_s});"
+    "emit_load_const(rec, #{obj});"
   end
 
   class Local
     def method_missing(name, *arg, &block)
       name = name.to_s
-      if name.end_with?("=")
-        name = name.gsub("=", "")
-        print "  " * $indent_level
-        if name == "snapshot"
+      if name.end_with?('=')
+        name = name.gsub('=', '')
+        print '  ' * $indent_level
+        if name == 'snapshot'
           puts "jit_snapshot_t *#{name} = #{arg[0]}"
-        elsif name == "result"
+        elsif name == 'result'
           puts arg[0]
-        elsif name.start_with?("v") and name.size > 1
+        elsif name.start_with?('v') && name.size > 1
           puts "VALUE #{name} = #{arg[0]}"
-        elsif arg[0].kind_of? LValue
-          puts "#{arg[0].type} #{name} = #{arg[0].to_s}"
+        elsif arg[0].is_a? LValue
+          puts "#{arg[0].type} #{name} = #{arg[0]}"
         else
           puts "lir_t #{name} = #{arg[0]}"
         end
@@ -216,6 +217,7 @@ class Yarv2Lir
         LValue.new(name)
       end
     end
+
     def swap(v1, v2)
       v1.name, v2.name = v2.name, v1.name
     end
@@ -259,7 +261,7 @@ class Yarv2Lir
   }
 
   match(:putnil) {
-    local.obj = emit_load_const("Qnil")
+    local.obj = emit_load_const('Qnil')
     push local.obj
   }
 
@@ -324,7 +326,7 @@ class Yarv2Lir
   match(:opt_str_freeze) {
     local.snapshot = take_snapshot
     local.recv = pop
-    guard("String.freeze", local.snapshot) {
+    guard('String.freeze', local.snapshot) {
       push local.recv
     }
   }
@@ -336,32 +338,32 @@ class Yarv2Lir
     local.vrecv = topn(0)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       if_(:argc, 1) {
-        if_(:mid, "-@") {
-          guard("Fixnum.-@") {
+        if_(:mid, '-@') {
+          guard('Fixnum.-@') {
             local.v = emit :FixnumNeg, local.recv
             push local.v
           }
         }
-        if_(:mid, "~") {
-          guard("Fixnum.~") {
+        if_(:mid, '~') {
+          guard('Fixnum.~') {
             local.v = emit :FixnumComplement, local.recv
             push local.v
           }
         }
-        if_(:mid, "to_f") {
-          guard("Fixnum.to_f") {
+        if_(:mid, 'to_f') {
+          guard('Fixnum.to_f') {
             local.v = emit :FixnumToFloat, local.recv
             push local.v
           }
         }
-        if_(:mid, "to_s") {
-          guard("Fixnum.to_s") {
+        if_(:mid, 'to_s') {
+          guard('Fixnum.to_s') {
             local.v = emit :FixnumToString, local.recv
             push local.v
           }
         }
-        if_(:mid, "to_i") {
-          guard("Fixnum.to_i") {
+        if_(:mid, 'to_i') {
+          guard('Fixnum.to_i') {
             push local.recv
           }
         }
@@ -371,8 +373,8 @@ class Yarv2Lir
         local.vobj = topn(1)
         local.swap(local.recv, local.obj)
         local.swap(local.vrecv, local.vobj)
-        if_(:mid, "**") {
-          guard("Fixnum.**") {
+        if_(:mid, '**') {
+          guard('Fixnum.**') {
             guard(:Fixnum, local.obj, local.vobj) {
               local.v = emit :FixnumPowOverflow, local.recv, local.obj
               push local.v
@@ -387,32 +389,32 @@ class Yarv2Lir
             # }
           }
         }
-        if_(:mid, "&") {
-          guard("Fixnum.&") {
+        if_(:mid, '&') {
+          guard('Fixnum.&') {
             local.v = emit :FixnumAnd, local.recv, local.obj
             push local.v
           }
         }
-        if_(:mid, "|") {
-          guard("Fixnum.|") {
+        if_(:mid, '|') {
+          guard('Fixnum.|') {
             local.v = emit :FixnumOr, local.recv, local.obj
             push local.v
           }
         }
-        if_(:mid, "^") {
-          guard("Fixnum.^") {
+        if_(:mid, '^') {
+          guard('Fixnum.^') {
             local.v = emit :FixnumXor, local.recv, local.obj
             push local.v
           }
         }
-        if_(:mid, "<<") {
-          guard("Fixnum.<<") {
+        if_(:mid, '<<') {
+          guard('Fixnum.<<') {
             local.v = emit :FixnumLshift, local.recv, local.obj
             push local.v
           }
         }
-        if_(:mid, ">>") {
-          guard("Fixnum.>>") {
+        if_(:mid, '>>') {
+          guard('Fixnum.>>') {
             local.v = emit :FixnumRshift, local.recv, local.obj
             push local.v
           }
@@ -421,25 +423,25 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       if_(:argc, 1) {
-        if_(:mid, "-@") {
-          guard("Float.-@") {
+        if_(:mid, '-@') {
+          guard('Float.-@') {
             local.v = emit :FloatNeg, local.recv
             push local.v
           }
         }
-        if_(:mid, "to_f") {
-          guard("Float.to_f") {
+        if_(:mid, 'to_f') {
+          guard('Float.to_f') {
             push local.recv
           }
         }
-        if_(:mid, "to_s") {
-          guard("Float.to_s") {
+        if_(:mid, 'to_s') {
+          guard('Float.to_s') {
             local.v = emit :FloatToString, local.recv
             push local.v
           }
         }
-        if_(:mid, "to_i") {
-          guard("Float.to_i") {
+        if_(:mid, 'to_i') {
+          guard('Float.to_i') {
             local.v = emit :FloatToFixnum, local.recv
             push local.v
           }
@@ -448,14 +450,14 @@ class Yarv2Lir
       if_(:argc, 2) {
         local.obj = pop
         local.swap(local.recv, local.obj)
-        if_(:mid, "**") {
-          guard("Float.**") {
+        if_(:mid, '**') {
+          guard('Float.**') {
             local.v = emit :FloatPow, local.recv, local.obj
             push local.v
           }
         }
-        if_(:mid, "**") {
-          guard("Float.**") {
+        if_(:mid, '**') {
+          guard('Float.**') {
             local.v = emit :FloatPow, local.recv, local.obj
             push local.v
           }
@@ -464,19 +466,19 @@ class Yarv2Lir
     }
 
     guard(:String, local.recv, local.vrecv, local.snapshot) {
-      if_(:mid, "to_f") {
-        guard("String.to_f") {
+      if_(:mid, 'to_f') {
+        guard('String.to_f') {
           local.v = emit :StringToFloat, local.recv
           push local.v
         }
       }
-      if_(:mid, "to_s") {
-        guard("String.to_s") {
+      if_(:mid, 'to_s') {
+        guard('String.to_s') {
           push local.recv
         }
       }
-      if_(:mid, "to_i") {
-        guard("String.to_i") {
+      if_(:mid, 'to_i') {
+        guard('String.to_i') {
           local.v = emit :StringToFixnum, local.recv
           push local.v
         }
@@ -488,8 +490,8 @@ class Yarv2Lir
         local.vobj = topn(1)
         local.swap(local.recv, local.obj)
         local.swap(local.vrecv, local.vobj)
-        if_(:mid, "sin") {
-          guard("Math.sin") {
+        if_(:mid, 'sin') {
+          guard('Math.sin') {
             guard(:Fixnum, local.obj, local.vobj) {
               local.t = emit :FixnumToFloat, local.obj
               local.v = emit :MathSin, local.recv, local.t
@@ -501,8 +503,8 @@ class Yarv2Lir
             }
           }
         }
-        if_(:mid, "cos") {
-          guard("Math.cos") {
+        if_(:mid, 'cos') {
+          guard('Math.cos') {
             guard(:Fixnum, local.obj, local.vobj) {
               local.t = emit :FixnumToFloat, local.obj
               local.v = emit :MathCos, local.recv, local.t
@@ -514,8 +516,8 @@ class Yarv2Lir
             }
           }
         }
-        if_(:mid, "tan") {
-          guard("Math.tan") {
+        if_(:mid, 'tan') {
+          guard('Math.tan') {
             guard(:Fixnum, local.obj, local.vobj) {
               local.t = emit :FixnumToFloat, local.obj
               local.v = emit :MathTan, local.recv, local.t
@@ -527,8 +529,8 @@ class Yarv2Lir
             }
           }
         }
-        if_(:mid, "exp") {
-          guard("Math.exp") {
+        if_(:mid, 'exp') {
+          guard('Math.exp') {
             guard(:Fixnum, local.obj, local.vobj) {
               local.t = emit :FixnumToFloat, local.obj
               local.v = emit :MathExp, local.recv, local.t
@@ -540,8 +542,8 @@ class Yarv2Lir
             }
           }
         }
-        if_(:mid, "sqrt") {
-          guard("Math.sqrt") {
+        if_(:mid, 'sqrt') {
+          guard('Math.sqrt') {
             guard(:Fixnum, local.obj, local.vobj) {
               local.t = emit :FixnumToFloat, local.obj
               local.v = emit :MathSqrt, local.recv, local.t
@@ -553,8 +555,8 @@ class Yarv2Lir
             }
           }
         }
-        if_(:mid, "log10") {
-          guard("Math.log10") {
+        if_(:mid, 'log10') {
+          guard('Math.log10') {
             guard(:Fixnum, local.obj, local.vobj) {
               local.t = emit :FixnumToFloat, local.obj
               local.v = emit :MathLog10, local.recv, local.t
@@ -566,8 +568,8 @@ class Yarv2Lir
             }
           }
         }
-        if_(:mid, "log2") {
-          guard("Math.log2") {
+        if_(:mid, 'log2') {
+          guard('Math.log2') {
             guard(:Fixnum, local.obj, local.vobj) {
               local.t = emit :FixnumToFloat, local.obj
               local.v = emit :MathLog2, local.recv, local.t
@@ -584,8 +586,8 @@ class Yarv2Lir
     guard(:Array, local.recv, local.vrecv, local.snapshot) {
       local.recv = pop
       if_(:argc, 1) {
-        if_(:mid, "length") {
-          guard("Array.length") {
+        if_(:mid, 'length') {
+          guard('Array.length') {
             local.v = emit :ArrayLength, local.recv
             push local.v
           }
@@ -595,9 +597,9 @@ class Yarv2Lir
         local.obj = pop
         local.vobj = topn(0)
         local.swap(local.recv, local.obj)
-        if_(:mid, "[]") {
+        if_(:mid, '[]') {
           guard(:Fixnum, local.obj, local.vobj) {
-            guard("Array.[]") {
+            guard('Array.[]') {
               local.v = emit :ArrayGet, local.recv, local.obj
               push local.v
             }
@@ -609,9 +611,9 @@ class Yarv2Lir
         local.obj = pop
         local.vidx = topn(1)
         local.swap(local.recv, local.idx)
-        if_(:mid, "[]=") {
+        if_(:mid, '[]=') {
           guard(:Fixnum, local.idx, local.vidx) {
-            guard("Array.[]=") {
+            guard('Array.[]=') {
               local.v = emit :ArraySet, local.recv, local.idx, local.obj
               push local.v
             }
@@ -649,7 +651,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard("Fixnum.+") {
+        guard('Fixnum.+') {
           local.v = emit :FixnumAddOverflow, local.recv, local.obj
           push local.v
         }
@@ -657,13 +659,13 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard("Float.+") {
+        guard('Float.+') {
           local.v = emit :FloatAdd, local.recv, local.obj
           push local.v
         }
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard("Float.+") {
+        guard('Float.+') {
           local.t = emit :FixnumToFloat, local.obj
           local.v = emit :FloatAdd, local.recv, local.t
           push local.v
@@ -672,7 +674,7 @@ class Yarv2Lir
     }
     guard(:String, local.recv, local.vrecv, local.snapshot) {
       guard(:String, local.obj, local.vobj, local.snapshot) {
-        guard("String.+") {
+        guard('String.+') {
           local.v = emit :StringAdd, local.recv, local.obj
           push local.v
         }
@@ -680,7 +682,7 @@ class Yarv2Lir
     }
     guard(:Array, local.recv, local.vrecv, local.snapshot) {
       guard(:Array, local.obj, local.vobj, local.snapshot) {
-        guard("Array.+") {
+        guard('Array.+') {
           local.v = emit :ArrayConcat, local.recv, local.obj
           push local.v
         }
@@ -701,7 +703,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard("Fixnum.-") {
+        guard('Fixnum.-') {
           local.v = emit :FixnumSubOverflow, local.recv, local.obj
           push local.v
         }
@@ -709,13 +711,13 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard("Float.-") {
+        guard('Float.-') {
           local.v = emit :FloatSub, local.recv, local.obj
           push local.v
         }
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard("Float.-") {
+        guard('Float.-') {
           local.t = emit :FixnumToFloat, local.obj
           local.v = emit :FloatSub, local.recv, local.t
           push local.v
@@ -736,7 +738,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard("Fixnum.*") {
+        guard('Fixnum.*') {
           local.v = emit :FixnumMulOverflow, local.recv, local.obj
           push local.v
         }
@@ -744,13 +746,13 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard("Float.*") {
+        guard('Float.*') {
           local.v = emit :FloatMul, local.recv, local.obj
           push local.v
         }
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard("Float.*") {
+        guard('Float.*') {
           local.t = emit :FixnumToFloat, local.obj
           local.v = emit :FloatMul, local.recv, local.t
           push local.v
@@ -772,7 +774,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard("Fixnum./") {
+        guard('Fixnum./') {
           local.v = emit :FixnumDivOverflow, local.recv, local.obj
           push local.v
         }
@@ -780,13 +782,13 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard("Float./") {
+        guard('Float./') {
           local.v = emit :FloatDiv, local.recv, local.obj
           push local.v
         }
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard("Float./") {
+        guard('Float./') {
           local.t = emit :FixnumToFloat, local.obj
           local.v = emit :FloatDiv, local.recv, local.t
           push local.v
@@ -808,7 +810,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard("Fixnum.%") {
+        guard('Fixnum.%') {
           local.v = emit :FixnumModOverflow, local.recv, local.obj
           push local.v
         }
@@ -816,13 +818,13 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard("Float.%") {
+        guard('Float.%') {
           local.v = emit :FloatMod, local.recv, local.obj
           push local.v
         }
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard("Float.%") {
+        guard('Float.%') {
           local.t = emit :FixnumToFloat, local.obj
           local.v = emit :FloatMod, local.recv, local.t
           push local.v
@@ -843,7 +845,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard("Fixnum.==") {
+        guard('Fixnum.==') {
           local.v = emit :FixnumEq, local.recv, local.obj
           push local.v
         }
@@ -851,7 +853,7 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard("Float.==") {
+        guard('Float.==') {
           local.v = emit :FloatEq, local.recv, local.obj
           push local.v
         }
@@ -872,7 +874,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard("Fixnum.!=") {
+        guard('Fixnum.!=') {
           local.v = emit :FixnumNe, local.recv, local.obj
           push local.v
         }
@@ -880,7 +882,7 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard("Float.!=") {
+        guard('Float.!=') {
           local.v = emit :FloatNe, local.recv, local.obj
           push local.v
         }
@@ -901,7 +903,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard("Fixnum.>") {
+        guard('Fixnum.>') {
           local.v = emit :FixnumGt, local.recv, local.obj
           push local.v
         }
@@ -909,7 +911,7 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard("Float.>") {
+        guard('Float.>') {
           local.v = emit :FloatGt, local.recv, local.obj
           push local.v
         }
@@ -929,7 +931,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard("Fixnum.>=") {
+        guard('Fixnum.>=') {
           local.v = emit :FixnumGe, local.recv, local.obj
           push local.v
         }
@@ -937,7 +939,7 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard("Float.>=") {
+        guard('Float.>=') {
           local.v = emit :FloatGe, local.recv, local.obj
           push local.v
         }
@@ -957,7 +959,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard("Fixnum.<") {
+        guard('Fixnum.<') {
           local.v = emit :FixnumLt, local.recv, local.obj
           push local.v
         }
@@ -965,7 +967,7 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard("Float.<") {
+        guard('Float.<') {
           local.v = emit :FloatLt, local.recv, local.obj
           push local.v
         }
@@ -985,7 +987,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard("Fixnum.<=") {
+        guard('Fixnum.<=') {
           local.v = emit :FixnumLe, local.recv, local.obj
           push local.v
         }
@@ -993,7 +995,7 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard("Float.<=") {
+        guard('Float.<=') {
           local.v = emit :FloatLe, local.recv, local.obj
           push local.v
         }
@@ -1013,14 +1015,14 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:String, local.recv, local.vrecv, local.snapshot) {
       guard(:String, local.obj, local.vobj, local.snapshot) {
-        guard("String.<<") {
+        guard('String.<<') {
           local.v = emit :StringAdd, local.recv, local.obj
           push local.v
         }
       }
     }
     guard(:Array, local.recv, local.vrecv, local.snapshot) {
-      guard("Array.<<") {
+      guard('Array.<<') {
         local.v = emit :ArrayAdd, local.recv, local.obj
         push local.v
       }
@@ -1041,14 +1043,14 @@ class Yarv2Lir
     guard(:NonSpecialConst, local.recv, local.vrecv, local.snapshot) {
       guard(:Array, local.recv, local.vrecv, local.snapshot) {
         guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-          guard("Array.[]") {
+          guard('Array.[]') {
             local.v = emit :ArrayGet, local.recv, local.obj
             push local.v
           }
         }
       }
       guard(:Hash, local.recv, local.vrecv, local.snapshot) {
-        guard("Hash.[]") {
+        guard('Hash.[]') {
           local.v = emit :HashGet, local.recv, local.obj
           push local.v
         }
@@ -1069,14 +1071,14 @@ class Yarv2Lir
     guard(:NonSpecialConst, local.recv, local.vrecv, local.snapshot) {
       guard(:Array, local.recv, local.vrecv, local.snapshot) {
         guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-          guard("Array.[]") {
+          guard('Array.[]') {
             local.v = emit :ArrayGet, local.recv, local.obj
             push local.v
           }
         }
       }
       guard(:Hash, local.recv, local.vrecv, local.snapshot) {
-        guard("Hash.[]") {
+        guard('Hash.[]') {
           local.v = emit :HashGet, local.recv, local.obj
           push local.v
         }
@@ -1099,14 +1101,14 @@ class Yarv2Lir
     guard(:NonSpecialConst, local.recv, local.vrecv, local.snapshot) {
       guard(:Array, local.recv, local.vrecv, local.snapshot) {
         guard(:Fixnum, local.idx, local.vidx, local.snapshot) {
-          guard("Array.[]=") {
+          guard('Array.[]=') {
             local.v = emit :ArraySet, local.recv, local.idx, local.obj
             push local.v
           }
         }
       }
       guard(:Hash, local.recv, local.vrecv, local.snapshot) {
-        guard("Hash.[]=") {
+        guard('Hash.[]=') {
           local.v = emit :HashSet, local.recv, local.idx, local.obj
           push local.v
         }
@@ -1128,14 +1130,14 @@ class Yarv2Lir
     guard(:NonSpecialConst, local.recv, local.vrecv, local.snapshot) {
       guard(:Array, local.recv, local.vrecv, local.snapshot) {
         guard(:Fixnum, local.idx, local.vidx, local.snapshot) {
-          guard("Array.[]=") {
+          guard('Array.[]=') {
             local.v = emit :ArraySet, local.recv, local.idx, local.obj
             push local.v
           }
         }
       }
       guard(:Hash, local.recv, local.vrecv, local.snapshot) {
-        guard("Hash.[]=") {
+        guard('Hash.[]=') {
           local.v = emit :HashSet, local.recv, local.idx, local.obj
           push local.v
         }
@@ -1152,19 +1154,19 @@ class Yarv2Lir
     local.recv = pop
     local.vrecv = topn(0)
     guard(:String, local.recv, local.vrecv, local.snapshot) {
-      guard("String.length") {
+      guard('String.length') {
         local.v = emit :StringLength, local.recv
         push local.v
       }
     }
     guard(:Array, local.recv, local.vrecv, local.snapshot) {
-      guard("Array.length") {
+      guard('Array.length') {
         local.v = emit :ArrayLength, local.recv
         push local.v
       }
     }
     guard(:Hash, local.recv, local.vrecv, local.snapshot) {
-      guard("Hash.length") {
+      guard('Hash.length') {
         local.v = emit :HashLength, local.recv
         push local.v
       }
@@ -1180,19 +1182,19 @@ class Yarv2Lir
     local.recv = pop
     local.vrecv = topn(0)
     guard(:String, local.recv, local.vrecv, local.snapshot) {
-      guard("String.size") {
+      guard('String.size') {
         local.v = emit :StringLength, local.recv
         push local.v
       }
     }
     guard(:Array, local.recv, local.vrecv, local.snapshot) {
-      guard("Array.size") {
+      guard('Array.size') {
         local.v = emit :ArrayLength, local.recv
         push local.v
       }
     }
     guard(:Hash, local.recv, local.vrecv, local.snapshot) {
-      guard("Hash.size") {
+      guard('Hash.size') {
         local.v = emit :HashLength, local.recv
         push local.v
       }
@@ -1208,19 +1210,19 @@ class Yarv2Lir
     local.recv = pop
     local.vrecv = topn(0)
     guard(:String, local.recv, local.vrecv, local.snapshot) {
-      guard("String.empty?") {
+      guard('String.empty?') {
         local.v = emit :StringEmptyP, local.recv
         push local.v
       }
     }
     guard(:Array, local.recv, local.vrecv, local.snapshot) {
-      guard("Array.empty?") {
+      guard('Array.empty?') {
         local.v = emit :ArrayEmptyP, local.recv
         push local.v
       }
     }
     guard(:Hash, local.recv, local.vrecv, local.snapshot) {
-      guard("Hash.empty?") {
+      guard('Hash.empty?') {
         local.v = emit :HashEmptyP, local.recv
         push local.v
       }
@@ -1244,7 +1246,7 @@ class Yarv2Lir
     local.ci = operand :CALL_INFO, 0
     local.obj  = pop
     local.recv = pop
-    guard("RegExp.=~") {
+    guard('RegExp.=~') {
       local.v = emit :RegExpMatch, local.recv, local.obj
       push local.v
     }
@@ -1259,7 +1261,7 @@ class Yarv2Lir
     local.vobj = operand :VALUE, 1
     local.obj  = emit_load_const(local.vobj)
     local.recv = pop
-    guard("RegExp.=~") {
+    guard('RegExp.=~') {
       local.v = emit :RegExpMatch, local.recv, local.obj
       push local.v
     }
