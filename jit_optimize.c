@@ -1381,11 +1381,11 @@ static void trace_optimize(trace_recorder_t *rec, trace_t *trace)
 	if (LIR_OPT_CONSTANT_FOLDING) {
 	    modified += apply_worklist(rec, constant_fold);
 	}
-	// if (LIR_OPT_DEAD_CODE_ELIMINATION) {
-	//     modified += apply_bb_worklist(rec, copy_propagation);
-	//     modified += apply_bb_worklist(rec, dead_store_elimination);
-	//     modified += apply_worklist(rec, eliminate_dead_code);
-	// }
+	if (LIR_OPT_DEAD_CODE_ELIMINATION) {
+	    modified += apply_bb_worklist(rec, copy_propagation);
+	    modified += apply_bb_worklist(rec, dead_store_elimination);
+	    modified += apply_worklist(rec, eliminate_dead_code);
+	}
 	if (LIR_OPT_INST_COMBINE) {
 	    modified += apply_worklist(rec, inst_combine);
 	    modified += apply_bb_worklist(rec, simplify_cfg);
