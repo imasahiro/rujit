@@ -760,6 +760,13 @@ static basicblock_t *trace_recorder_create_block(trace_recorder_t *rec, VALUE *p
     return bb;
 }
 
+static void trace_recorder_create_entry_block(trace_recorder_t *rec, VALUE *pc)
+{
+    basicblock_t *bb = trace_recorder_create_block(rec, pc);
+    Emit_Jump(rec, bb);
+    rec->cur_bb = bb;
+}
+
 static void trace_recorder_remove_bb(trace_recorder_t *rec, basicblock_t *bb)
 {
     jit_list_remove(&rec->bblist, (uintptr_t)bb);
@@ -1365,24 +1372,11 @@ static int trace_selection(rb_jit_t *jit, jit_event_t *e)
 	    start_recording(jit, trace);
 	    trace_reset(trace);
 	    trace_recorder_clear(jit->recorder, trace, 1);
-	    record_insn(jit->recorder, e);
+	    trace_recorder_create_entry_block(jit->recorder, target_pc);
+	    // record_insn(jit->recorder, e);
 	}
     }
     return 0;
-}
-
-int rb_jit_trace(rb_thread_t *th, rb_control_frame_t *reg_cfp, VALUE *reg_pc, int opcode)
-{
-    jit_event_t ebuf, *e;
-    if (UNLIKELY(disable_jit)) {
-	return 0;
-    }
-    e = jit_event_init(&ebuf, current_jit, th, reg_cfp, reg_pc);
-    // FIXME rujit do not support multi thread
-    if (UNLIKELY(th != current_jit->main_thread)) {
-	return 0;
-    }
-    return trace_selection(current_jit, e);
 }
 
 int rujit_invoke_or_make_trace(rb_thread_t *th, rb_control_frame_t *reg_cfp, VALUE *reg_pc, int opcode)
@@ -1390,6 +1384,10 @@ int rujit_invoke_or_make_trace(rb_thread_t *th, rb_control_frame_t *reg_cfp, VAL
     jit_event_t ebuf, *e;
     rb_jit_t *jit = current_jit;
     if (UNLIKELY(disable_jit)) {
+	return 0;
+    }
+    // FIXME rujit do not support multi thread
+    if (UNLIKELY(th != current_jit->main_thread)) {
 	return 0;
     }
 
@@ -1408,6 +1406,11 @@ void rujit_record_insn(rb_thread_t *th, rb_control_frame_t *reg_cfp, VALUE *reg_
     if (UNLIKELY(disable_jit)) {
 	return;
     }
+    // FIXME rujit do not support multi thread
+    if (UNLIKELY(th != current_jit->main_thread)) {
+	return;
+    }
+
     e = jit_event_init(&ebuf, jit, th, reg_cfp, reg_pc);
     assert(is_recording(jit));
     trace_selection(jit, e);

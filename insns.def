@@ -1194,16 +1194,11 @@ branchif
 	RUBY_VM_CHECK_INTS(th);
 	JUMP(dst);
 	if (dst < 0) {
-	    int invoked;
-	    PUSH(val);
-	    invoked = rujit_invoke_or_make_trace(th, GET_CFP(), pc, BIN(branchif));
+	    int invoked = rujit_invoke_or_make_trace(th, GET_CFP(), pc, BIN(branchif));
 	    if (invoked) {
 		RESTORE_REGS();
 		SET_PC(REG_CFP->pc);
 		TC_DISPATCH_ORIGN(__JIT__);
-	    }
-	    else {
-		POPN(1);
 	    }
 	}
     }
@@ -1225,9 +1220,7 @@ branchunless
 	RUBY_VM_CHECK_INTS(th);
 	JUMP(dst);
 	if (dst < 0) {
-	    int invoked;
-	    PUSH(val);
-	    invoked = rujit_invoke_or_make_trace(th, GET_CFP(), pc, BIN(branchunless));
+	    int invoked = rujit_invoke_or_make_trace(th, GET_CFP(), pc, BIN(branchunless));
 	    if (invoked) {
 		RESTORE_REGS();
 		SET_PC(REG_CFP->pc);
