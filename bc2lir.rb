@@ -862,6 +862,13 @@ class Yarv2Lir
           push local.v
         }
       }
+      guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
+        guard('Float.==') {
+          local.t = emit :FixnumToFloat, local.obj
+          local.v = emit :FloatEq, local.recv, local.t
+          push local.v
+        }
+      }
     }
     # TODO   ["ObjectEq",  "opt_eq",  "==", [:_, :_]],
     other {
@@ -888,6 +895,13 @@ class Yarv2Lir
       guard(:Float, local.obj, local.vobj, local.snapshot) {
         guard('Float.!=') {
           local.v = emit :FloatNe, local.recv, local.obj
+          push local.v
+        }
+      }
+      guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
+        guard('Float.!=') {
+          local.t = emit :FixnumToFloat, local.obj
+          local.v = emit :FloatNe, local.recv, local.t
           push local.v
         }
       }
@@ -920,6 +934,13 @@ class Yarv2Lir
           push local.v
         }
       }
+      guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
+        guard('Float.>') {
+          local.t = emit :FixnumToFloat, local.obj
+          local.v = emit :FloatGt, local.recv, local.t
+          push local.v
+        }
+      }
     }
     other {
       local.v = emit_call_method
@@ -945,6 +966,13 @@ class Yarv2Lir
       guard(:Float, local.obj, local.vobj, local.snapshot) {
         guard('Float.>=') {
           local.v = emit :FloatGe, local.recv, local.obj
+          push local.v
+        }
+      }
+      guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
+        guard('Float.>=') {
+          local.t = emit :FixnumToFloat, local.obj
+          local.v = emit :FloatGe, local.recv, local.t
           push local.v
         }
       }
@@ -976,6 +1004,13 @@ class Yarv2Lir
           push local.v
         }
       }
+      guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
+        guard('Float.<') {
+          local.t = emit :FixnumToFloat, local.obj
+          local.v = emit :FloatLt, local.recv, local.t
+          push local.v
+        }
+      }
     }
     other {
       local.v = emit_call_method
@@ -1001,6 +1036,13 @@ class Yarv2Lir
       guard(:Float, local.obj, local.vobj, local.snapshot) {
         guard('Float.<=') {
           local.v = emit :FloatLe, local.recv, local.obj
+          push local.v
+        }
+      }
+      guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
+        guard('Float.<=') {
+          local.t = emit :FixnumToFloat, local.obj
+          local.v = emit :FloatLe, local.recv, local.t
           push local.v
         }
       }

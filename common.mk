@@ -847,6 +847,7 @@ jit.$(OBJEXT): {$(VPATH)}jit.c {$(VPATH)}jit.h {$(VPATH)}jit_cgen_cmd.h \
 	{$(VPATH)}lir.c {$(VPATH)}jit_record.c \
 	{$(VPATH)}jit_codegen.c {$(VPATH)}jit_optimize.c \
 	{$(VPATH)}jit_record.c bc2lir.c \
+	{$(VPATH)}jit_config.h \
 	{$(VPATH)}jit.h jit_prelude.c
 
 jit_prelude.c: $(srcdir)/tool/generic_erb.rb $(srcdir)/jit_prelude.rb
