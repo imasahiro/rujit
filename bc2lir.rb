@@ -140,7 +140,9 @@ class Yarv2Lir
       mname = stringify(mname)
       puts "if (JIT_OP_UNREDEFINED_P(#{mname}, #{type})) {"
       print indent
-      puts emit 'GuardMethodRedefine', 'CURRENT_PC', mname, type
+      print "lir_t tmp = "
+      print emit 'GuardMethodRedefine', 'CURRENT_PC', mname, type
+      puts "(void)tmp;"
     else
       puts "if (IS_#{type}(#{arg[1]})) {"
       print indent
