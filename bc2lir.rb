@@ -30,10 +30,14 @@ class Yarv2Lir
 
   def self.emit(opname, *arg)
     if opname == :EnvLoad || opname == :EnvStore
-      "Emit#{opname.to_s}(#{["rec", *arg].map(&:to_s).join(', ')});"
+      s = "Emit#{opname.to_s}(#{["rec", *arg].map(&:to_s).join(', ')})"
     else
-      "EmitIR(#{[opname, *arg].map(&:to_s).join(', ')});"
+      s = "EmitIR(#{[opname, *arg].map(&:to_s).join(', ')})"
     end
+    if !opname.to_s.start_with?("Guard")
+      s = s + ";"
+    end
+    s
   end
 
   def self.operand(type, idx)
@@ -138,17 +142,13 @@ class Yarv2Lir
       type, mname = type.split('.')
       type = "#{type.upcase}_REDEFINED_OP_FLAG"
       mname = stringify(mname)
-      puts "if (JIT_OP_UNREDEFINED_P(#{mname}, #{type})) {"
-      print indent
-      print "lir_t tmp = "
+      print "if (JIT_OP_UNREDEFINED_P(#{mname}, #{type}) && ("
       print emit 'GuardMethodRedefine', 'CURRENT_PC', mname, type
-      puts "(void)tmp;"
+      puts ") != NULL) {"
     else
-      puts "if (IS_#{type}(#{arg[1]})) {"
-      print indent
-      print "lir_t tmp = "
+      print "if (IS_#{type}(#{arg[1]}) && ("
       print emit "GuardType#{type}".to_sym, 'CURRENT_PC', arg[0]
-      puts "(void)tmp;"
+      puts ") != NULL) {"
     end
     yield
     $indent_level -= 1
