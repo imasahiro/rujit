@@ -198,6 +198,10 @@ class Yarv2Lir
     end
     "emit_load_const(rec, #{obj});"
   end
+  def self.emit_search_method(ci)
+    print indent
+    puts "vm_search_method(ci, ci->recv = TOPN(ci->orig_argc));"
+  end
 
   class Local
     def method_missing(name, *arg, &block)
@@ -209,6 +213,8 @@ class Yarv2Lir
           puts "jit_snapshot_t *#{name} = #{arg[0]}"
         elsif name == 'result'
           puts arg[0]
+          print '  ' * $indent_level
+          puts 'return;'
         elsif name.start_with?('v') && name.size > 1
           puts "VALUE #{name} = #{arg[0]}"
         elsif arg[0].is_a? LValue
@@ -338,8 +344,9 @@ class Yarv2Lir
   match(:opt_send_without_block) {
     local.snapshot = take_snapshot
     local.recv = pop
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.vrecv = topn(0)
+    emit_search_method local.ci
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       if_(:argc, 1) {
         if_(:mid, '-@') {
@@ -630,15 +637,15 @@ class Yarv2Lir
     }
     if_(:method_type, :ivar) {
       guard(:Object, local.recv, local.vrecv, local.snapshot) {
-        local.result = emit_get_prop local.recv
+        local.v = emit_get_prop local.recv
+        push local.v
       }
     }
     if_(:method_type, :attrset) {
       guard(:Object, local.recv, local.vrecv, local.snapshot) {
         local.obj = pop
         local.swap(local.recv, local.obj)
-        local.v = emit_set_prop local.recv, local.obj
-        push local.v
+        local.result = emit_set_prop local.recv, local.obj
       }
     }
     other {
@@ -648,7 +655,7 @@ class Yarv2Lir
 
   match(:opt_plus) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -700,7 +707,7 @@ class Yarv2Lir
 
   match(:opt_minus) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -735,7 +742,7 @@ class Yarv2Lir
   }
   match(:opt_mult) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -771,7 +778,7 @@ class Yarv2Lir
 
   match(:opt_div) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -807,7 +814,7 @@ class Yarv2Lir
 
   match(:opt_mod) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -842,7 +849,7 @@ class Yarv2Lir
   }
   match(:opt_eq) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -878,7 +885,7 @@ class Yarv2Lir
   }
   match(:opt_neq) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -914,7 +921,7 @@ class Yarv2Lir
   }
   match(:opt_gt) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -949,7 +956,7 @@ class Yarv2Lir
   }
   match(:opt_ge) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -984,7 +991,7 @@ class Yarv2Lir
   }
   match(:opt_lt) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -1019,7 +1026,7 @@ class Yarv2Lir
   }
   match(:opt_le) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -1054,7 +1061,7 @@ class Yarv2Lir
   }
   match(:opt_ltlt) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -1081,7 +1088,7 @@ class Yarv2Lir
 
   match(:opt_aref) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.obj  = pop
     local.recv = pop
     local.vobj  = topn(0)
@@ -1109,7 +1116,7 @@ class Yarv2Lir
   }
   match(:opt_aref_with) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.vobj  = operand :VALUE, 2
     local.vrecv = topn(0)
     local.recv = pop
@@ -1137,7 +1144,7 @@ class Yarv2Lir
   }
   match(:opt_aset) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.obj  = pop
     local.idx  = pop
     local.recv = pop
@@ -1167,7 +1174,7 @@ class Yarv2Lir
   }
   match(:opt_aset_with) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.vidx  = operand :VALUE, 2
     local.vrecv = topn(0)
     local.obj  = pop
@@ -1196,7 +1203,7 @@ class Yarv2Lir
   }
   match(:opt_length) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.recv = pop
     local.vrecv = topn(0)
     guard(:String, local.recv, local.vrecv, local.snapshot) {
@@ -1224,7 +1231,7 @@ class Yarv2Lir
   }
   match(:opt_size) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.recv = pop
     local.vrecv = topn(0)
     guard(:String, local.recv, local.vrecv, local.snapshot) {
@@ -1252,7 +1259,7 @@ class Yarv2Lir
   }
   match(:opt_empty_p) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.recv = pop
     local.vrecv = topn(0)
     guard(:String, local.recv, local.vrecv, local.snapshot) {
@@ -1289,7 +1296,7 @@ class Yarv2Lir
 
   match(:opt_regexpmatch1) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.obj  = pop
     local.recv = pop
     guard('RegExp.=~') {
@@ -1303,7 +1310,7 @@ class Yarv2Lir
   }
   match(:opt_regexpmatch2) {
     local.snapshot = take_snapshot
-    local.ci = operand :CALL_INFO, 0
+    local.ci = operand :CALL_INFO, 1
     local.vobj = operand :VALUE, 1
     local.obj  = emit_load_const(local.vobj)
     local.recv = pop

@@ -47,18 +47,43 @@ static jit_snapshot_t *take_snapshot(trace_recorder_t *rec)
     return trace_recorder_take_snapshot(rec, REG_PC, 0);
 }
 
+#define ATTRIBUTE (1)
+#define INSTANCE (0)
+
 static lir_t emit_get_prop(trace_recorder_t *rec, CALL_INFO ci, lir_t recv)
 {
-    return NULL;
+    jit_event_t *e = rec->current_event;
+    VALUE obj = ci->recv;
+    ID id = ci->me->def->body.attr.id;
+    int cacheable = vm_load_cache(obj, id, 0, ci, 1);
+    int index = ci->aux.index - 1;
+    assert(index >= 0 && cacheable);
+    EmitIR(GuardProperty, REG_PC, recv, ATTRIBUTE, id, index, ci->class_serial);
+    return Emit_GetPropertyName(rec, recv, index);
 }
 
 static lir_t emit_set_prop(trace_recorder_t *rec, CALL_INFO ci, lir_t recv, lir_t val)
 {
-    return NULL;
+    jit_event_t *e = rec->current_event;
+    VALUE obj = ci->recv;
+    lir_t Rval;
+    ID id = ci->me->def->body.attr.id;
+    int cacheable = vm_load_or_insert_ivar(obj, id, Qnil /*FIXME*/, NULL, ci, 1);
+    int index = ci->aux.index - 1;
+    assert(index >= 0 && cacheable);
+    EmitIR(GuardProperty, REG_PC, recv, ATTRIBUTE, id, index, ci->class_serial);
+    if (cacheable == 1) {
+	Rval = EmitIR(SetPropertyName, recv, 0, index, val);
+    }
+    else {
+	Rval = EmitIR(SetPropertyName, recv, (long)id, index, val);
+    }
+    return Rval;
 }
 
 static lir_t emit_call_method(trace_recorder_t *rec, CALL_INFO ci)
 {
+    asm volatile("int3");
     return NULL;
 }
 
@@ -240,7 +265,7 @@ static void record_getinstancevariable(trace_recorder_t *rec, jit_event_t *e)
 	size_t index = ic->ic_value.index;
 	trace_recorder_take_snapshot(rec, REG_PC, 0);
 	EmitIR(GuardTypeObject, REG_PC, Rrecv);
-	EmitIR(GuardProperty, REG_PC, Rrecv, 0 /*!is_attr*/, id, index, ic->ic_serial);
+	EmitIR(GuardProperty, REG_PC, Rrecv, INSTANCE, id, index, ic->ic_serial);
 	_PUSH(EmitIR(GetPropertyName, Rrecv, index));
 	return;
     }
@@ -261,7 +286,7 @@ static void record_setinstancevariable(trace_recorder_t *rec, jit_event_t *e)
 	size_t index = ic->ic_value.index;
 	trace_recorder_take_snapshot(rec, REG_PC, 0);
 	EmitIR(GuardTypeObject, REG_PC, Rrecv);
-	EmitIR(GuardProperty, REG_PC, Rrecv, 0 /*!is_attr*/, id, index, ic->ic_serial);
+	EmitIR(GuardProperty, REG_PC, Rrecv, INSTANCE, id, index, ic->ic_serial);
 	Rval = _POP();
 	if (cacheable == 1) {
 	    EmitIR(SetPropertyName, Rrecv, 0, ic->ic_value.index, Rval);
