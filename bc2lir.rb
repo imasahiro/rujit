@@ -144,7 +144,9 @@ class Yarv2Lir
     else
       puts "if (IS_#{type}(#{arg[1]})) {"
       print indent
-      puts emit "GuardType#{type}".to_sym, 'CURRENT_PC', arg[0]
+      print "lir_t tmp = "
+      print emit "GuardType#{type}".to_sym, 'CURRENT_PC', arg[0]
+      puts "(void)tmp;"
     end
     yield
     $indent_level -= 1
