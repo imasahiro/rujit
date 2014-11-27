@@ -831,6 +831,9 @@ static int copy_propagation(worklist_t *list, basicblock_t *bb)
 	if (inst->opcode == OPCODE_IEnvStore) {
 	    for (j = i + 1; j < bb->insts.size; j++) {
 		lir_inst_t *inst2 = basicblock_get(bb, j);
+		if (inst2->opcode == OPCODE_IEnvStore) {
+		    break;
+		}
 		if (inst2->opcode == OPCODE_IEnvLoad) {
 		    IEnvStore *ir1 = (IEnvStore *)inst;
 		    IEnvLoad *ir2 = (IEnvLoad *)inst2;
@@ -913,7 +916,10 @@ static int dead_store_elimination(worklist_t *list, basicblock_t *bb)
 	if (inst->opcode == OPCODE_IEnvStore) {
 	    for (j = i - 1; j != 0; j--) {
 		lir_inst_t *inst2 = basicblock_get(bb, j);
-		if (inst->opcode == inst2->opcode) {
+		if (inst2->opcode == OPCODE_IEnvLoad) {
+		    break;
+		}
+		if (inst2->opcode == OPCODE_IEnvStore) {
 		    IEnvStore *ir1 = (IEnvStore *)inst;
 		    IEnvStore *ir2 = (IEnvStore *)inst2;
 		    if (ir1->Level == ir2->Level && ir1->Index == ir2->Index) {
