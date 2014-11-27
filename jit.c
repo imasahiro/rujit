@@ -862,8 +862,6 @@ static lir_inst_t *trace_recorder_add_inst(trace_recorder_t *recorder, lir_inst_
 {
     lir_inst_t *newinst = NULL;
     if ((newinst = constant_fold_inst(recorder, inst)) == inst) {
-	// when `inst` is able to constant folding, folded `inst`
-	// is already inserted by `constant_fold_inst`
 	newinst = lir_inst_allocate(recorder, inst, inst_size);
 	basicblock_append(recorder->cur_bb, newinst);
 	update_userinfo(recorder, newinst);
