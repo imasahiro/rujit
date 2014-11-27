@@ -859,10 +859,6 @@ lir.c: $(srcdir)/lir.def $(srcdir)/lir.rb $(srcdir)/lir_template.h
 	$(ECHO) creating $@
 	$(Q) $(BASERUBY) "$(srcdir)/lir.rb" $(srcdir)/lir.def $(srcdir)/lir_template.h > $@
 
-yarv2lir.c: {$(VPATH)}lir.def $(srcdir)/yarv2lir.rb
-	$(ECHO) creating $@
-	$(Q) $(BASERUBY) "$(srcdir)/yarv2lir.rb" > $@
-
 bc2lir.c: {$(VPATH)}lir.def {$(VPATH)}bc2lir.rb
 	$(ECHO) creating $@
 	$(Q) $(BASERUBY) "$(srcdir)/bc2lir.rb" > $@

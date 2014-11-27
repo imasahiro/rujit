@@ -163,17 +163,6 @@ def dump_ir(ir)
   puts "}\n"
 end
 
-def emit_specialinst(ir)
-  if !ir.variadic and ir.trans
-    print "static lir_t EmitSpecialInst_#{ir.name}(trace_recorder_t *Rec"
-    puts ", CALL_INFO ci, lir_t *regs)"
-    puts "{\n"
-    print "  return Emit_#{ir.name}(Rec"
-    puts ir.arg.length.times.map {|i| ", regs[#{i}]" }.join("") + ");"
-    puts "}\n"
-  end
-end
-
 def emit_get_next(ir)
   puts "static lir_t *GetNext_#{ir.name}(lir_inst_t *Inst, int idx)"
   puts "{"
@@ -214,7 +203,6 @@ end
 irs.each{|ir|
   define_struct ir
   emit_ir ir
-  emit_specialinst ir
   dump_ir ir
   emit_get_next ir
 }
