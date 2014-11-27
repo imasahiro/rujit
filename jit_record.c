@@ -83,7 +83,7 @@ static lir_t emit_set_prop(trace_recorder_t *rec, CALL_INFO ci, lir_t recv, lir_
 
 static lir_t emit_call_method(trace_recorder_t *rec, CALL_INFO ci)
 {
-    asm volatile("int3");
+    __int3__;
     return NULL;
 }
 
@@ -575,7 +575,7 @@ static void record_defineclass(trace_recorder_t *rec, jit_event_t *e)
 
 static void record_send(trace_recorder_t *rec, jit_event_t *e)
 {
-    asm volatile("int3");
+    __int3__;
 }
 
 static void record_invokesuper(trace_recorder_t *rec, jit_event_t *e)
@@ -598,7 +598,7 @@ static void record_invokesuper(trace_recorder_t *rec, jit_event_t *e)
 	block = ci->blockptr;
     }
     trace_recorder_take_snapshot(rec, REG_PC, 0);
-    asm volatile("int3");
+    __int3__;
     //EmitMethodCall(rec, e, ci, block, Rblock, 1);
 }
 
@@ -852,12 +852,12 @@ static void record_answer(trace_recorder_t *rec, jit_event_t *e)
 
 static void record_opt_succ(trace_recorder_t *rec, jit_event_t *e)
 {
-    asm volatile("int3");
+    __int3__;
 }
 
 static void record_opt_not(trace_recorder_t *rec, jit_event_t *e)
 {
-    asm volatile("int3");
+    __int3__;
 }
 
 static void record_insn(trace_recorder_t *rec, jit_event_t *e)
