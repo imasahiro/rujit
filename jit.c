@@ -853,15 +853,6 @@ L_head:
     return 1;
 }
 
-static int peephole(trace_recorder_t *rec, lir_inst_t *inst)
-{
-    if (lir_is_guard(inst) && elimnate_guard(rec, inst)) {
-	// guard can remove
-	return 1;
-    }
-    return 0;
-}
-
 static lir_inst_t *constant_fold_inst(trace_recorder_t *, lir_inst_t *);
 static void record_insn(trace_recorder_t *ecorder, jit_event_t *e);
 static void update_userinfo(trace_recorder_t *rec, lir_inst_t *inst);
@@ -870,9 +861,6 @@ static void dump_lir_inst(lir_inst_t *inst);
 static lir_inst_t *trace_recorder_add_inst(trace_recorder_t *recorder, lir_inst_t *inst, unsigned inst_size)
 {
     lir_inst_t *newinst = NULL;
-    if (peephole(recorder, inst)) {
-	return NULL;
-    }
     if ((newinst = constant_fold_inst(recorder, inst)) == inst) {
 	// when `inst` is able to constant folding, folded `inst`
 	// is already inserted by `constant_fold_inst`
