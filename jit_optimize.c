@@ -791,11 +791,11 @@ static int copy_propagation(worklist_t *list, basicblock_t *bb)
 {
     unsigned i, j, k;
     int modified = 0;
+    trace_recorder_t *rec = list->rec;
     worklist_t worklist;
+
     jit_list_init(&worklist.list);
     worklist.rec = list->rec;
-
-    trace_recorder_t *rec = list->rec;
 
     for (i = 0; i < bb->insts.size; i++) {
 	lir_inst_t *inst = basicblock_get(bb, i);
