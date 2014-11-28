@@ -29,4 +29,5 @@ if [ $? -eq 1 ]; then
     exit 1
 fi
 
-time -p ./$TARGET/miniruby $file
+{ /usr/bin/time -p ./$TARGET/miniruby $file; } 2> out.txt
+cat out.txt
