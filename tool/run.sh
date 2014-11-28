@@ -21,9 +21,9 @@ if [ -d $TARGET ]; then
     echo
 else
     mkdir -p $TARGET
-    (autoreconf -ivf && cd $TARGET && ../configure --prefix=$HOME 2>&1 > /dev/null && make miniruby 2>&1 > /dev/null)
+    (autoreconf -ivf && cd $TARGET && ../configure --prefix=$HOME > /dev/null 2>&1 && make miniruby > /dev/null 2>&1)
 fi
-(cd $TARGET && make miniruby 2>&1 /dev/null)
+(cd $TARGET && make miniruby > /dev/null 2>&1 )
 if [ $? -eq 1 ]; then
     echo "build failed"
     exit 1
