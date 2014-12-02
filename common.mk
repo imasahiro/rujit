@@ -838,17 +838,10 @@ $(srcdir)/ext/rbconfig/sizeof/sizes.c: $(srcdir)/ext/rbconfig/sizeof/depend \
 	$(Q) $(CHDIR) $(@D) && $(exec) $(MAKE) -f depend $(MFLAGS) \
 		Q=$(Q) ECHO=$(ECHO) top_srcdir=../../.. srcdir=. VPATH=../../.. RUBY="$(BASERUBY)"
 
+## rujit
 jit.$(OBJEXT): {$(VPATH)}jit.c {$(VPATH)}jit.h {$(VPATH)}jit_cgen_cmd.h \
-	$(RUBY_H_INCLUDES) $(VM_CORE_H_INCLUDES) {$(VPATH)}vm_insnhelper.h \
-	{$(VPATH)}vm_exec.h {$(VPATH)}insns.def {$(VPATH)}vmtc.inc \
-	{$(VPATH)}vm.inc {$(VPATH)}insns.inc \
-	{$(VPATH)}internal.h {$(VPATH)}vm.h {$(VPATH)}constant.h \
-	$(PROBES_H_INCLUDES) {$(VPATH)}probes_helper.h {$(VPATH)}vm_opts.h \
-	{$(VPATH)}lir.c {$(VPATH)}jit_record.c \
-	{$(VPATH)}jit_codegen.c {$(VPATH)}jit_optimize.c \
-	{$(VPATH)}jit_record.c bc2lir.c \
-	{$(VPATH)}jit_config.h \
-	{$(VPATH)}jit.h jit_prelude.c
+	{$(VPATH)}insns.def lir.c bc2lir.c jit_prelude.c \
+	{$(VPATH)}jit_config.h
 
 jit_prelude.c: $(srcdir)/tool/generic_erb.rb $(srcdir)/jit_prelude.rb
 	$(ECHO) generating $@
