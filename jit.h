@@ -11,11 +11,11 @@
 #ifndef RUBY_JIT_H
 #define RUBY_JIT_H 1
 
-// extern int rb_jit_trace(rb_thread_t *, rb_control_frame_t *reg_cfp, VALUE *reg_pc, int opcode);
-extern void rb_jit_check_redefinition_opt_method(const rb_method_entry_t *me, VALUE klass);
+// extern int rujit_trace(rb_thread_t *, rb_control_frame_t *reg_cfp, VALUE *reg_pc, int opcode);
+extern void rujit_check_redefinition_opt_method(const rb_method_entry_t *me, VALUE klass);
 extern void rujit_record_insn(rb_thread_t *, rb_control_frame_t *reg_cfp, VALUE *reg_pc);
 extern int rujit_invoke_or_make_trace(rb_thread_t *, rb_control_frame_t *reg_cfp, VALUE *reg_pc, int opcode);
-extern void rb_jit_notify_proc_freed(void *ptr);
+extern void rujit_notify_proc_freed(void *ptr);
 
 extern void Destruct_rawjit();
 

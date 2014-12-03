@@ -30,11 +30,9 @@
 extern "C" {
 #endif
 
-typedef long hashmap_data_t;
-
 // This 64-bit-to-32-bit hash was copied from
 // http://www.concentric.net/~Ttwang/tech/inthash.htm .
-unsigned hash6432shift(hashmap_data_t pc)
+static unsigned hash6432shift(hashmap_data_t pc)
 {
     long key = (long)pc;
     key = (~key) + (key << 18); // key = (key << 18) - key - 1;
@@ -45,6 +43,8 @@ unsigned hash6432shift(hashmap_data_t pc)
     key = key ^ (key >> 22);
     return (unsigned)key;
 }
+
+typedef long hashmap_data_t;
 
 #define DELTA 4
 #define HASHMAP_INITSIZE 128

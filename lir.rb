@@ -84,7 +84,7 @@ def define_struct(ir)
 end
 
 def emit_ir(ir)
-  print "static lir_t Emit_#{ir.name}(trace_recorder_t *Rec"
+  print "static lir_t Emit_#{ir.name}(lir_builder_t *builder"
   ir.arg.each{|e|
     type = e.type
     name = e.name
@@ -118,9 +118,9 @@ def emit_ir(ir)
   }
 
   if ir.variadic
-    puts "  return ADD_INST_N(Rec, ir, argc);\n"
+    puts "  return ADD_INST_N(builder, ir, argc);\n"
   else
-    puts "  return ADD_INST(Rec, ir);\n"
+    puts "  return ADD_INST(builder, ir);\n"
   end
 
   puts "}\n"
