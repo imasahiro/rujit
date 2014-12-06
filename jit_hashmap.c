@@ -32,9 +32,8 @@ extern "C" {
 
 // This 64-bit-to-32-bit hash was copied from
 // http://www.concentric.net/~Ttwang/tech/inthash.htm .
-static unsigned hash6432shift(hashmap_data_t pc)
+static unsigned hash6432shift(long key)
 {
-    long key = (long)pc;
     key = (~key) + (key << 18); // key = (key << 18) - key - 1;
     key = key ^ (key >> 31);
     key = key * 21; // key = (key + (key << 2)) + (key << 4);

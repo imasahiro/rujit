@@ -8,6 +8,42 @@
 
 **********************************************************************/
 
+typedef struct trace_recorder_t {
+    lir_builder_t *builder;
+    local_var_table_t *lvar;
+} trace_recorder_t;
+
+#define TRACE_ERROR_INFO(OP, TAIL)                                        \
+    OP(OK, "ok")                                                          \
+    OP(NATIVE_METHOD, "invoking native method")                           \
+    OP(THROW, "throw exception")                                          \
+    OP(UNSUPPORT_OP, "not supported bytecode")                            \
+    OP(LEAVE, "this trace return into native method")                     \
+    OP(REGSTACK_UNDERFLOW, "register stack underflow")                    \
+    OP(ALREADY_RECORDED, "this instruction is already recorded on trace") \
+    OP(BUFFER_FULL, "trace buffer is full")                               \
+    TAIL
+
+#define DEFINE_TRACE_ERROR_STATE(NAME, MSG) TRACE_ERROR_##NAME,
+#define DEFINE_TRACE_ERROR_MESSAGE(NAME, MSG) MSG,
+
+enum trace_error_state {
+    TRACE_ERROR_INFO(DEFINE_TRACE_ERROR_STATE, TRACE_ERROR_END = -1)
+};
+
+static const char *trace_error_message[] = {
+    TRACE_ERROR_INFO(DEFINE_TRACE_ERROR_MESSAGE, "")
+};
+
+struct jit_event_t {
+    rb_thread_t *th;
+    rb_control_frame_t *cfp;
+    VALUE *pc;
+    trace_t *trace;
+    int opcode;
+    enum trace_error_state reason;
+};
+
 // record/invoke trace
 void rujit_record_insn(rb_thread_t *th, rb_control_frame_t *reg_cfp, VALUE *reg_pc)
 {

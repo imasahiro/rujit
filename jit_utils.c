@@ -9,6 +9,7 @@
 **********************************************************************/
 
 #include "jit_hashmap.c"
+#include "jit_profile.c"
 
 typedef struct memory_pool {
     struct page_chunk *head;
@@ -54,6 +55,8 @@ static void memory_pool_reset(struct memory_pool *mp, int alloc_memory)
     }
     mp->head = mp->root = root;
 }
+
+#define MEMORY_POOL_ALLOC(TYPE, MP) ((TYPE *)memory_pool_alloc(MP, sizeof(TYPE)))
 
 static void *memory_pool_alloc(struct memory_pool *mp, size_t size)
 {
@@ -112,9 +115,12 @@ typedef struct jit_list {
     unsigned capacity;
 } jit_list_t;
 
+#define JIT_LIST_ADD(LIST, VAL) jit_list_add(LIST, (uintptr_t)VAL)
 #define JIT_LIST_GET(TYPE, LIST, IDX) ((TYPE)jit_list_get(LIST, IDX))
+#define JIT_LIST_INSERT(LIST, IDX, VAL) jit_list_insert(LIST, IDX, (uintptr_t)VAL)
 #define JIT_LIST_INDEXOF(LIST, VAL) jit_list_indexof(LIST, (uintptr_t)VAL)
 #define JIT_LIST_SET(LIST, IDX, VAL) jit_list_get(LIST, IDX, (uintptr_t)VAL)
+#define JIT_LIST_REMOVE(LIST, VAL) jit_list_remove(LIST, (uintptr_t)VAL)
 
 static void jit_list_init(jit_list_t *self)
 {
