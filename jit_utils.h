@@ -8,8 +8,8 @@
 
 **********************************************************************/
 
-#include "jit_hashmap.c"
-#include "jit_profile.c"
+#include "jit_hashmap.h"
+#include "jit_profile.h"
 
 typedef struct memory_pool {
     struct page_chunk *head;

@@ -79,6 +79,7 @@ make_no_method_exception(VALUE exc, const char *format, VALUE obj, int argc, con
 /* redefined_flag { */
 static st_table *jit_opt_method_table = 0;
 static short jit_vm_redefined_flag[JIT_BOP_EXT_LAST_];
+static VALUE rb_cMath;
 
 #define MATH_REDEFINED_OP_FLAG (1 << 9)
 static int

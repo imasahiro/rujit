@@ -18,14 +18,13 @@
 #include "vm_insnhelper.h"
 #include "vm_exec.h"
 #include "iseq.h"
-
 #include <dlfcn.h> // dlopen, dlclose, dlsym
 
 #define JIT_HOST 1
 #include "jit.h"
+#include "jit_internal.h"
 #include "jit_config.h"
 #include "jit_prelude.c"
-#include "jit_utils.c"
 #include "jit_cgen_cmd.h" // static const char cmd_template[];
 
 #undef REG_CFP
@@ -35,6 +34,7 @@
 
 typedef struct rujit_core rujit_t;
 typedef struct jit_event_t jit_event_t;
+typedef struct jit_trace_t jit_trace_t;
 
 /* global variables */
 int rujit_record_trace_mode = 0;
@@ -44,9 +44,12 @@ static VALUE rb_cMath = Qnil;
 static VALUE rb_cJit = Qnil;
 static rujit_t *current_jit = NULL;
 
-#include "jit_ruby_api.c"
+#include "jit_utils.h"
+#include "jit_ruby_api.h"
 
 /* RuJIT core */
+
+typedef struct lir_func_t lir_func_t;
 
 typedef struct lir_builder_t {
     struct lir_func_t *cur_func;
@@ -54,58 +57,24 @@ typedef struct lir_builder_t {
     struct memory_pool_t *mpool;
 } lir_builder_t;
 
+typedef struct native_func_manager_t {
+} native_func_manager_t;
+
 struct rujit_core {
+    VALUE self;
     rb_thread_t *main_thread;
     jit_event_t *current_event;
+    struct trace_t *current_trace;
+    struct rujit_backend_t *backend;
+    struct trace_recorder_t *recorder;
     memory_pool_t mpool;
     lir_builder_t builder;
     native_func_manager_t manager;
     hashmap_t traces;
     hashmap_t blacklist;
+    bloom_filter_t filter;
+    bloom_filter_t blacklist_filter;
 };
-
-static rujit_t *jit_new()
-{
-    rujit_t *jit = (rujit_t *)malloc(sizeof(*jit));
-    memset(jit, 0, sizeof(*jit));
-    if (rb_cJit == Qnil) {
-	rb_cJit = rb_define_class("Jit", rb_cObject);
-	rb_undef_alloc_func(rb_cJit);
-	rb_undef_method(CLASS_OF(rb_cJit), "new");
-	jit->self = TypedData_Wrap_Struct(rb_cJit, &jit_data_type, jit);
-	rb_gc_register_mark_object(jit->self);
-    }
-
-    jit->recorder = trace_recorder_new();
-    bloom_filter_init(&jit->filter);
-    bloom_filter_init(&jit->blacklist_filter);
-    hashmap_init(&jit->traces, 1);
-    hashmap_init(&jit->blacklist, 1);
-    hashmap_init(&jit->block_contained, 1);
-    rb_jit_init_redefined_flag();
-    jit_default_params_setup(jit);
-    jit_list_init(&jit->method_cache);
-    jit_list_init(&jit->trace_list);
-    jit->main_thread = GET_THREAD();
-    return jit;
-}
-
-static void jit_delete(rujit_t *jit)
-{
-    unsigned i;
-    assert(jit);
-    hashmap_dispose(&jit->traces, (hashmap_entry_destructor_t)trace_delete);
-    hashmap_dispose(&jit->blacklist, NULL);
-    hashmap_dispose(&jit->block_contained, (hashmap_entry_destructor_t)jit_list_free);
-    trace_recorder_delete(jit->recorder);
-    for (i = 0; i < jit->method_cache.size; i++) {
-	free((void *)jit_list_get(&jit->method_cache, i));
-    }
-    jit_list_delete(&jit->method_cache);
-    jit_list_delete(&jit->trace_list);
-    jit_profile_dump();
-    free(jit);
-}
 
 static void jit_runtime_init(struct rb_vm_global_state *global_state_ptr)
 {
@@ -212,18 +181,6 @@ static void jit_mark(void *ptr)
 {
     RUBY_MARK_ENTER("jit");
     if (ptr) {
-	// unsigned i, j;
-	// rujit_t *jit = (rujit_t *)ptr;
-	// for (i = 0; i < jit->method_cache.size; i++) {
-	//     CALL_INFO ci = (CALL_INFO)jit_list_get(&jit->method_cache, i);
-	// }
-	// for (i = 0; i < jit->trace_list.size; i++) {
-	//     trace_t *trace = (trace_t *)jit_list_get(&jit->trace_list, i);
-	//     for (j = 0; j < trace->cpool.list.size; j++) {
-	// 	VALUE v = (VALUE)jit_list_get(&trace->cpool.list, j);
-	// 	RUBY_MARK_UNLESS_NULL(v);
-	//     }
-	// }
     }
     RUBY_MARK_LEAVE("jit");
 }
@@ -234,8 +191,7 @@ static size_t jit_memsize(const void *ptr)
     if (ptr) {
 	rujit_t *jit = (rujit_t *)ptr;
 	size += sizeof(rujit_t);
-	size += jit->method_cache.size * sizeof(rb_call_info_t);
-	size += jit->trace_list.size * sizeof(trace_t);
+	size += native_func_manager_memsize(&jit->manager);
     }
     return size;
 }
@@ -250,12 +206,48 @@ static const rb_data_type_t jit_data_type = {
     RUBY_TYPED_FREE_IMMEDIATELY
 };
 
+static rujit_t *jit_new()
+{
+    rujit_t *jit = (rujit_t *)malloc(sizeof(*jit));
+    memset(jit, 0, sizeof(*jit));
+    if (rb_cJit == Qnil) {
+	rb_cJit = rb_define_class("Jit", rb_cObject);
+	rb_undef_alloc_func(rb_cJit);
+	rb_undef_method(CLASS_OF(rb_cJit), "new");
+	jit->self = TypedData_Wrap_Struct(rb_cJit, &jit_data_type, jit);
+	rb_gc_register_mark_object(jit->self);
+    }
+
+    jit->recorder = trace_recorder_new();
+    bloom_filter_init(&jit->filter);
+    bloom_filter_init(&jit->blacklist_filter);
+    native_func_manager_init(&jit->manager);
+    hashmap_init(&jit->traces, 1);
+    hashmap_init(&jit->blacklist, 1);
+    rb_jit_init_redefined_flag();
+    jit_default_params_setup(jit);
+    jit->main_thread = GET_THREAD();
+    return jit;
+}
+
+static void jit_delete(rujit_t *jit)
+{
+    unsigned i;
+    assert(jit);
+    //hashmap_dispose(&jit->traces, (hashmap_entry_destructor_t)trace_delete);
+    hashmap_dispose(&jit->blacklist, NULL);
+    trace_recorder_delete(jit->recorder);
+    native_func_manager_delete(&jit->manager);
+    jit_profile_dump();
+    free(jit);
+}
+
 static int is_recording(rujit_t *jit)
 {
     return rujit_record_trace_mode == 1;
 }
 
-static void start_recording(rujit_t *jit, trace_t *trace)
+static void start_recording(rujit_t *jit, jit_trace_t *trace)
 {
     rujit_record_trace_mode = 1;
     jit->current_trace = trace;
@@ -293,22 +285,20 @@ void Destruct_rawjit()
     }
 }
 
-// ir;
-
-struct lir_basicblock_t;
-
-typedef struct lir_t {
+/* lir_inst {*/
+typedef struct lir_inst_t {
     unsigned id;
     unsigned short opcode;
     unsigned short flag;
     struct lir_basicblock_t *parent;
     jit_list_t *user;
-} *lir_t
+} lir_inst_t, *lir_t;
 
-    static lir_t
-    lir_init(lir_t inst, size_t size)
+static lir_t lir_init(lir_t inst, size_t size, unsigned opcode)
 {
     memset(inst, 0, size);
+    inst->opcode = opcode;
+    return opcode;
 }
 
 static void lir_delete(lir_t inst)
@@ -319,28 +309,117 @@ static void lir_delete(lir_t inst)
     }
 }
 
-/* basicblock { */
-typedef lir_basicblock_t
+#define LIR_NEWINST(T) ((T *)lir_inst_init(alloca(sizeof(T)), sizeof(T), OPCODE_##T))
+#define LIR_NEWINST_N(T, SIZE) \
+    ((T *)lir_inst_init(alloca(sizeof(T) + sizeof(lir_t) * (SIZE)), sizeof(T) + sizeof(lir_t) * (SIZE), OPCODE_##T))
+
+/* } lir_inst */
+
+#define ADD_INST(REC, INST) ADD_INST_N(REC, INST, 0)
+
+#define ADD_INST_N(REC, INST, SIZE) \
+    trace_recorder_add_inst(REC, &(INST)->base, sizeof(*INST) + sizeof(lir_t) * (SIZE))
+
+#include "lir.c"
+
+static int lir_is_terminator(lir_t inst)
 {
+    switch (inst->opcode) {
+#define IS_TERMINATOR(OPNAME) \
+    case OPCODE_I##OPNAME:    \
+	return LIR_IS_TERMINATOR_##OPNAME;
+	LIR_EACH(IS_TERMINATOR);
+	default:
+	    assert(0 && "unreachable");
+#undef IS_TERMINATOR
+    }
+    return 0;
+}
+
+static int lir_is_guard(lir_t inst)
+{
+    switch (inst->opcode) {
+#define IS_TERMINATOR(OPNAME) \
+    case OPCODE_I##OPNAME:    \
+	return LIR_IS_GUARD_INST_##OPNAME;
+	LIR_EACH(IS_TERMINATOR);
+	default:
+	    assert(0 && "unreachable");
+#undef IS_TERMINATOR
+    }
+    return 0;
+}
+
+static lir_t *lir_inst_get_args(lir_t inst, int idx)
+{
+#define GET_ARG(OPNAME)    \
+    case OPCODE_I##OPNAME: \
+	return GetNext_##OPNAME(inst, idx);
+
+    switch (lir_opcode(inst)) {
+	LIR_EACH(GET_ARG);
+	default:
+	    assert(0 && "unreachable");
+    }
+#undef GET_ARG
+    return NULL;
+}
+
+static void lir_inst_adduser(trace_recorder_t *rec, lir_t inst, lir_t ir)
+{
+    if (inst->user == NULL) {
+	inst->user = (jit_list_t *)memory_pool_alloc(&rec->mpool, sizeof(jit_list_t));
+	jit_list_init(inst->user);
+    }
+    jit_list_add(inst->user, (uintptr_t)ir);
+}
+
+static void lir_inst_removeuser(lir_t inst, lir_t ir)
+{
+    if (inst->user == NULL) {
+	return;
+    }
+    jit_list_remove(inst->user, (uintptr_t)ir);
+    if (inst->user->size == 0) {
+	jit_list_delete(inst->user);
+	inst->user = NULL;
+    }
+}
+
+static void lir_update_userinfo(trace_recorder_t *rec, lir_t inst)
+{
+    lir_t *ref = NULL;
+    int i = 0;
+    while ((ref = lir_inst_get_args(inst, i)) != NULL) {
+	lir_t user = *ref;
+	if (user) {
+	    lir_inst_adduser(rec, user, inst);
+	}
+	i += 1;
+    }
+}
+
+/* basicblock { */
+typedef struct lir_basicblock_t {
     lir_inst_t base;
     VALUE *pc;
-    local_var_table_t *init_table;
-    local_var_table_t *last_table;
-    jit_list preds;
-    jit_list succs;
+    struct local_var_table_t *init_table;
+    struct local_var_table_t *last_table;
+    jit_list_t insts;
+    jit_list_t preds;
+    jit_list_t succs;
     jit_list_t side_exits; // n -> PC, n+1 -> reg2stack map
-}
-basicblock_t;
+} basicblock_t;
 
 static basicblock_t *basicblock_new(memory_pool_t *mpool, VALUE *pc, int id)
 {
-    basicblock_t *bb = (basicblock_t *)memory_pool_alloc(mp, sizeof(*bb));
+    basicblock_t *bb = (basicblock_t *)memory_pool_alloc(mpool, sizeof(*bb));
     bb->pc = pc;
     bb->init_table = NULL;
     bb->last_table = NULL;
     jit_list_init(&bb->insts);
     jit_list_init(&bb->preds);
-    jit_list_init(&bb->succss);
+    jit_list_init(&bb->succs);
     jit_list_init(&bb->side_exits);
     return bb;
 }
@@ -359,8 +438,8 @@ static void basicblock_delete(basicblock_t *bb)
     }
     jit_list_delete(&bb->insts);
     jit_list_delete(&bb->preds);
-    jit_list_delete(&bb->succss);
-    jit_list_delete(&bb->stack_map);
+    jit_list_delete(&bb->succs);
+    jit_list_delete(&bb->side_exits);
 
     if (bb->init_table) {
 	local_var_table_delete(bb->init_table);
@@ -447,7 +526,7 @@ static lir_t basicblock_get_terminator(basicblock_t *bb)
 {
     lir_t val = basicblock_get_last(bb);
     if (lir_is_terminator(val)) {
-	return reg;
+	return val;
     }
     return NULL;
 }
@@ -463,6 +542,7 @@ static lir_t basicblock_get_next(basicblock_t *bb, lir_t inst)
 
 /* } basicblock */
 
+/* lir_func { */
 struct lir_func_t {
     basicblock_t *entry_bb;
     jit_list_t constants;
@@ -481,10 +561,14 @@ static lir_func_t *lir_func_new(memory_pool_t *mp)
 
 static void lir_func_delete(lir_func_t *func)
 {
+    jit_list_delete(&func->constants);
+    jit_list_delete(&func->method_cache);
     jit_list_delete(&func->bblist);
     jit_list_delete(&func->side_exits);
 }
+/* } lir_func */
 
+/* lir_builder {*/
 static lir_builder_t *lir_builder_new(memory_pool_t *mpool, lir_func_t *func)
 {
     lir_builder_t *builder = (lir_builder_t *)malloc(sizeof(lir_builder_t));
@@ -505,51 +589,70 @@ static lir_t lir_builder_add_inst(lir_builder_t *builder, lir_t val)
     return val;
 }
 
+static jit_list_t *lir_builder_cur_bb(lir_builder_t *builder)
+{
+    return builder->cur_bb;
+}
+
+static jit_list_t *lir_builder_blocks(lir_builder_t *builder)
+{
+    return builder->cur_func->bblist;
+}
+
+static basicblock_t *lir_builder_get_block(lir_builder_t *builder, unsigned idx)
+{
+    jit_list_t *bblist = lir_builder_blocks(builder);
+    return JIT_LIST_GET(basicblock_t, bblist, idx);
+}
+
 static void lir_builder_delete(lir_builder_t *builder)
 {
     free(builder);
 }
+/* } lir_builder */
 
-struct rujit_backend_t {
-    void *ctx;
-    void (*f_init)(rujit_t *, struct rujit_backend_t *self);
-    void (*f_delete)(rujit_t *, struct rujit_backend_t *self);
-    native_func_t *(*f_compile)(rujit_t *, void *ctx, lir_func_t *func);
-    void (*f_unload)(rujit_t *, void *ctx, native_func_t *func);
-} rujit_backend_t;
-
-static void cgen_init(rujit_t *jit, struct rujit_backend_t *self)
-{
-}
-
-static void cgen_delete(rujit_t *jit, struct rujit_backend_t *self)
-{
-}
-
-static native_func_t *cgen_compile(rujit_t *jit, void *ctx, lir_func_t *func)
-{
-    return NULL;
-}
-
-static void cgen_unload(rujit_t *jit, void *ctx, native_func_t *func)
-{
-}
-
-struct rujit_backend_t backend_cgen = {
-    NULL,
-    cgen_init,
-    cgen_delete,
-    cgen_compile,
-    cgen_unload
-};
+typedef trace_side_exit_handler_t *(*native_raw_func_t)(rb_thread_t *, rb_control_frame_t *);
 
 typedef struct native_func_t {
     unsigned flag;
     unsigned refc;
     void *handler;
-    void *code;
+    native_raw_func_t code;
     lir_func_t *origin;
 } native_func_t;
+
+struct rujit_backend_t {
+    void *ctx;
+    void (*f_init)(rujit_t *, struct rujit_backend_t *self);
+    void (*f_delete)(rujit_t *, struct rujit_backend_t *self);
+    native_raw_func_t *(*f_compile)(rujit_t *, void *ctx, lir_func_t *func);
+    void (*f_unload)(rujit_t *, void *ctx, native_func_t *func);
+} rujit_backend_t;
+
+static void dummy_init(rujit_t *jit, struct rujit_backend_t *self)
+{
+}
+
+static void dummy_delete(rujit_t *jit, struct rujit_backend_t *self)
+{
+}
+
+static native_raw_func_t *dummy_compile(rujit_t *jit, void *ctx, lir_func_t *func)
+{
+    return NULL;
+}
+
+static void dummy_unload(rujit_t *jit, void *ctx, native_func_t *func)
+{
+}
+
+rujit_backend_t backend_cgen = {
+    NULL,
+    dummy_init,
+    dummy_delete,
+    dummy_compile,
+    dummy_unload
+};
 
 #define RC_INC(O) ((O)->refc++)
 #define RC_DEC(O) (--(O)->refc)
@@ -585,14 +688,15 @@ static void native_func_delete(native_func_t *func)
 enum native_func_call_status {
     NATIVE_FUNC_ERROR = 0,
     NATIVE_FUNC_SUCCESS = 1,
-    NATIVE_FUNC_DELETED = 2
+    NATIVE_FUNC_DELETED = 1 << 1,
+    NATIVE_FUNC_INVALIDATED = 1 << 2
 };
 
 static int native_func_invoke(native_func_t *func, VALUE *return_value)
 {
     *return_value = 0;
     RC_INC(func);
-    *return_value = ((raw_native_func_t)func->code)();
+    *return_value = ((native_raw_func_t)func->code)();
     RC_DEC(func);
     if (func->flag & NATIVE_FUNC_INVALIDATED && RC_CHECK0(func)) {
 	native_func_delete(func);
@@ -601,8 +705,9 @@ static int native_func_invoke(native_func_t *func, VALUE *return_value)
     return NATIVE_FUNC_SUCCESS;
 }
 
-typedef struct jit_trace_t {
-    VALUE *pc;
+struct jit_trace_t {
+    VALUE *start_pc;
+    VALUE *last_pc;
     struct native_func_t *func;
     struct jit_trace_t *parent;
     struct jit_trace_t *child;
@@ -617,7 +722,180 @@ typedef struct jit_trace_t {
 #if JIT_DEBUG_TRACE
     char *func_name;
 #endif
-} jit_trace_t;
+};
 
-static jit_trace_t *trace_new();
-static void trace_delete(jit_trace_t *trace);
+static jit_trace_t *trace_new(memory_pool_t *mpool, VALUE *pc, struct jit_trace_t *parent)
+{
+    jit_trace_t *trace = MEMORY_POOL_ALLOC(jit_trace_t, mpool);
+    memset(trace, 0, sizeof(*trace));
+    trace->start_pc = pc;
+    trace->parent = parent;
+    return trace;
+}
+static void trace_delete(jit_trace_t *trace)
+{
+    if (trace->func) {
+	native_func_invalidate(trace->func);
+	trace->func = NULL;
+    }
+    if (trace->child) {
+    }
+}
+
+#include "lir.c"
+#include "jit_codegen.h"
+
+typedef struct trace_recorder_t {
+    struct lir_builder_t *builder;
+    struct local_var_table_t *lvar;
+    memory_pool_t *mpool;
+} trace_recorder_t;
+
+#define TRACE_ERROR_INFO(OP, TAIL)                                        \
+    OP(OK, "ok")                                                          \
+    OP(NATIVE_METHOD, "invoking native method")                           \
+    OP(THROW, "throw exception")                                          \
+    OP(UNSUPPORT_OP, "not supported bytecode")                            \
+    OP(LEAVE, "this trace return into native method")                     \
+    OP(REGSTACK_UNDERFLOW, "register stack underflow")                    \
+    OP(ALREADY_RECORDED, "this instruction is already recorded on trace") \
+    OP(BUFFER_FULL, "trace buffer is full")                               \
+    TAIL
+
+#define DEFINE_TRACE_ERROR_STATE(NAME, MSG) TRACE_ERROR_##NAME,
+#define DEFINE_TRACE_ERROR_MESSAGE(NAME, MSG) MSG,
+
+enum trace_error_state {
+    TRACE_ERROR_INFO(DEFINE_TRACE_ERROR_STATE, TRACE_ERROR_END = -1)
+};
+
+static const char *trace_error_message[] = {
+    TRACE_ERROR_INFO(DEFINE_TRACE_ERROR_MESSAGE, "")
+};
+
+static void trace_recorder_init(trace_recorder_t *recorder, memory_pool_t *mpool)
+{
+    lir_builder_init(&recorder->builder, mpool);
+    recorder->lvar = NULL;
+    recorder->mpool = mpool;
+}
+
+static trace_recorder_t *trace_recorder_new(memory_pool_t *mpool)
+{
+    trace_recorder_t *recorder = MEMORY_POOL_ALLOC(trace_recorder_t, mpool);
+    trace_recorder_init(recorder, mpool);
+    return recorder;
+}
+
+static void trace_recorder_delete(trace_recorder_t *recorder)
+{
+    lir_builder_delete(&recorder->builder);
+    if (recorder->lvar) {
+	local_var_table_delete(recorder->lvar);
+    }
+}
+
+static void trace_recorder_abort(trace_recorder_t *recorder, enum trace_error_state reason)
+{
+    asm volatile("int3");
+    if (reason != TRACE_ERROR_OK) {
+	fprintf(stderr, "%s¥n", trace_error_message[(int)reason]);
+    }
+}
+
+struct jit_event_t {
+    rb_thread_t *th;
+    rb_control_frame_t *cfp;
+    VALUE *pc;
+    struct trace_t *trace;
+    int opcode;
+    enum trace_error_state reason;
+};
+
+static jit_event_t *jit_event_init(jit_event_t *e, rujit_t *jit, rb_thread_t *th, rb_control_frame_t *cfp, VALUE *pc)
+{
+    ISEQ iseq = cfp->iseq;
+    VALUE *iseq_orig = rb_iseq_original_iseq(iseq);
+    long offset = pc - iseq->iseq_encoded;
+    int opcode = (int)iseq_orig[offset];
+    e->th = th;
+    e->cfp = cfp;
+    e->pc = pc;
+    e->trace = jit->current_trace;
+    e->opcode = opcode;
+    e->reason = TRACE_ERROR_OK;
+    jit->current_event = e;
+    return e;
+}
+
+// record/invoke trace
+void rujit_record_insn(rb_thread_t *th, rb_control_frame_t *reg_cfp, VALUE *reg_pc)
+{
+    jit_event_t ebuf, *e;
+    rujit_t *jit = current_jit;
+    trace_recorder_t *recorder = jit->recorder;
+    if (UNLIKELY(disable_jit || th != jit->main_thread)) {
+	return;
+    }
+    assert(is_recording(jit));
+    e = jit_event_init(&ebuf, jit, th, reg_cfp, reg_pc);
+    if (is_end_of_trace(recorder, e)) {
+	trace_recorder_compile(jit, recorder);
+	stop_recording(jit);
+    }
+    else {
+	record_insn(recorder, e);
+    }
+}
+
+int rujit_invoke_or_make_trace(rb_thread_t *th, rb_control_frame_t *reg_cfp, VALUE *reg_pc)
+{
+    jit_event_t ebuf, *e;
+    rujit_t *jit = current_jit;
+    jit_trace_t *trace;
+    if (UNLIKELY(disable_jit || th != jit->main_thread)) {
+	return 0;
+    }
+    if (is_recording(jit)) {
+	return 0;
+    }
+    e = jit_event_init(&ebuf, jit, th, reg_cfp, reg_pc);
+    trace = find_trace(jit, e);
+
+    if (trace_is_compiled(trace)) {
+	return trace_invoke(jit, e, trace);
+    }
+    if (is_backward_branch(e)) {
+	if (trace == NULL) {
+	    trace = rujit_alloc_trace(jit, e, NULL);
+	}
+	trace->start_pc = reg_pc;
+    }
+
+    if (trace) {
+	trace->counter += 1;
+	if (trace->counter > HOT_TRACE_THRESHOLD) {
+	    trace_recorder_t *recorder = jit->recorder;
+	    if (find_trace_in_blacklist(jit, trace)) {
+		return 0;
+	    }
+	    start_recording(jit, trace);
+	    trace_reset(trace);
+	    trace_recorder_reset(recorder, trace, 1);
+	    trace_recorder_create_entry_block(recorder, reg_pc);
+	    record_insn(recorder, e);
+	}
+    }
+    return 0;
+}
+
+// compile method
+void rujit_push_compile_queue(rb_thread_t *th, rb_control_frame_t *cfp, rb_method_entry_t *me)
+{
+    assert(0 && "not implemented");
+}
+
+#include "jit_record.h"
+#include "jit_codegen.h"
+#include "jit_optimize.h"
+#include "jit_args.h"
