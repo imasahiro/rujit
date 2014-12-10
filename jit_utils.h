@@ -119,13 +119,18 @@ typedef struct jit_list {
 #define JIT_LIST_GET(TYPE, LIST, IDX) ((TYPE)jit_list_get(LIST, IDX))
 #define JIT_LIST_INSERT(LIST, IDX, VAL) jit_list_insert(LIST, IDX, (uintptr_t)VAL)
 #define JIT_LIST_INDEXOF(LIST, VAL) jit_list_indexof(LIST, (uintptr_t)VAL)
-#define JIT_LIST_SET(LIST, IDX, VAL) jit_list_get(LIST, IDX, (uintptr_t)VAL)
+#define JIT_LIST_SET(LIST, IDX, VAL) jit_list_set(LIST, IDX, (uintptr_t)VAL)
 #define JIT_LIST_REMOVE(LIST, VAL) jit_list_remove(LIST, (uintptr_t)VAL)
 
 static void jit_list_init(jit_list_t *self)
 {
     self->list = NULL;
     self->size = self->capacity = 0;
+}
+
+static unsigned jit_list_size(jit_list_t *self)
+{
+    return self->size;
 }
 
 static uintptr_t jit_list_get(jit_list_t *self, int idx)

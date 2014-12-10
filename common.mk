@@ -1561,9 +1561,9 @@ jit.$(OBJEXT): {$(VPATH)}insns_info.inc
 jit.$(OBJEXT): {$(VPATH)}io.h
 jit.$(OBJEXT): {$(VPATH)}iseq.h
 jit.$(OBJEXT): {$(VPATH)}jit_args.h
-jit.$(OBJEXT): {$(VPATH)}jit_core.c
-jit.$(OBJEXT): {$(VPATH)}jit_hashmap.c
-jit.$(OBJEXT): {$(VPATH)}jit_ruby_api.c
+jit.$(OBJEXT): {$(VPATH)}jit_core.h
+jit.$(OBJEXT): {$(VPATH)}jit_hashmap.h
+jit.$(OBJEXT): {$(VPATH)}jit_ruby_api.h
 jit.$(OBJEXT): {$(VPATH)}lir_template.h
 jit.$(OBJEXT): {$(VPATH)}method.h
 jit.$(OBJEXT): {$(VPATH)}node.h

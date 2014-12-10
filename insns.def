@@ -1169,7 +1169,7 @@ jump
     RUBY_VM_CHECK_INTS(th);
     JUMP(dst);
     if (dst < 0) {
-	int invoked = rujit_invoke_or_make_trace(th, GET_CFP(), pc, BIN(jump));
+	int invoked = rujit_invoke_or_make_trace(th, GET_CFP(), pc);
 	if (invoked) {
 	    RESTORE_REGS();
 	    SET_PC(REG_CFP->pc);
@@ -1194,7 +1194,7 @@ branchif
 	RUBY_VM_CHECK_INTS(th);
 	JUMP(dst);
 	if (dst < 0) {
-	    int invoked = rujit_invoke_or_make_trace(th, GET_CFP(), pc, BIN(branchif));
+	    int invoked = rujit_invoke_or_make_trace(th, GET_CFP(), pc);
 	    if (invoked) {
 		RESTORE_REGS();
 		SET_PC(REG_CFP->pc);
@@ -1220,7 +1220,7 @@ branchunless
 	RUBY_VM_CHECK_INTS(th);
 	JUMP(dst);
 	if (dst < 0) {
-	    int invoked = rujit_invoke_or_make_trace(th, GET_CFP(), pc, BIN(branchunless));
+	    int invoked = rujit_invoke_or_make_trace(th, GET_CFP(), pc);
 	    if (invoked) {
 		RESTORE_REGS();
 		SET_PC(REG_CFP->pc);

@@ -1,13 +1,548 @@
-///**********************************************************************
+/**********************************************************************
+
+  jit_core.c -
+
+  $Author$
+
+  Copyright (C) 2014 Masahiro Ide
+
+**********************************************************************/
+
+/* lir_inst {*/
+typedef struct lir_inst_t {
+    unsigned id;
+    unsigned short opcode;
+    unsigned short flag;
+    struct lir_basicblock_t *parent;
+    jit_list_t *user;
+} lir_inst_t, *lir_t;
+
+static lir_t lir_init(lir_t inst, size_t size, unsigned opcode)
+{
+    memset(inst, 0, size);
+    inst->opcode = opcode;
+    return inst;
+}
+
+static void lir_delete(lir_t inst)
+{
+    if (inst->user) {
+	jit_list_delete(inst->user);
+	inst->user = NULL;
+    }
+}
+
+#define LIR_NEWINST(T) ((T *)lir_inst_init((lir_t)alloca(sizeof(T)), sizeof(T), OPCODE_##T))
+#define LIR_NEWINST_N(T, SIZE) \
+    ((T *)lir_inst_init((lir_t)alloca(sizeof(T) + sizeof(lir_t) * (SIZE)), sizeof(T) + sizeof(lir_t) * (SIZE), OPCODE_##T))
+
+/* } lir_inst */
+
+#define ADD_INST(REC, INST) ADD_INST_N(REC, INST, 0)
+
+#define ADD_INST_N(REC, INST, SIZE) \
+    lir_builder_add_inst(REC, &(INST)->base, sizeof(*INST) + sizeof(lir_t) * (SIZE))
+
+#include "lir_template.h"
+// #include "lir.c"
+
+static int lir_is_terminator(lir_t inst)
+{
+    switch (inst->opcode) {
+#define IS_TERMINATOR(OPNAME) \
+    case OPCODE_I##OPNAME:    \
+	return LIR_IS_TERMINATOR_##OPNAME;
+	// 	LIR_EACH(IS_TERMINATOR);
+	default:
+	    assert(0 && "unreachable");
+#undef IS_TERMINATOR
+    }
+    return 0;
+}
+
+static int lir_is_guard(lir_t inst)
+{
+    switch (inst->opcode) {
+#define IS_TERMINATOR(OPNAME) \
+    case OPCODE_I##OPNAME:    \
+	return LIR_IS_GUARD_INST_##OPNAME;
+	// 	LIR_EACH(IS_TERMINATOR);
+	default:
+	    assert(0 && "unreachable");
+#undef IS_TERMINATOR
+    }
+    return 0;
+}
+
+static lir_t *lir_inst_get_args(lir_t inst, int idx)
+{
+#define GET_ARG(OPNAME)    \
+    case OPCODE_I##OPNAME: \
+	return GetNext_##OPNAME(inst, idx);
+
+    switch (inst->opcode) {
+	// 	LIR_EACH(GET_ARG);
+	default:
+	    assert(0 && "unreachable");
+    }
+#undef GET_ARG
+    TODO("");
+    return NULL;
+}
+
+static void lir_inst_adduser(memory_pool_t *mpool, lir_t inst, lir_t ir)
+{
+    if (inst->user == NULL) {
+	inst->user = (jit_list_t *)memory_pool_alloc(mpool, sizeof(jit_list_t));
+	jit_list_init(inst->user);
+    }
+    jit_list_add(inst->user, (uintptr_t)ir);
+}
+
+static void lir_inst_removeuser(lir_t inst, lir_t ir)
+{
+    if (inst->user == NULL) {
+	return;
+    }
+    jit_list_remove(inst->user, (uintptr_t)ir);
+    if (inst->user->size == 0) {
+	jit_list_delete(inst->user);
+	inst->user = NULL;
+    }
+}
+
+static void lir_update_userinfo(memory_pool_t *mpool, lir_t inst)
+{
+    lir_t *ref = NULL;
+    int i = 0;
+    while ((ref = lir_inst_get_args(inst, i)) != NULL) {
+	lir_t user = *ref;
+	if (user) {
+	    lir_inst_adduser(mpool, user, inst);
+	}
+	i += 1;
+    }
+}
+
+/* basicblock { */
+typedef struct lir_basicblock_t {
+    lir_inst_t base;
+    VALUE *pc;
+    struct local_var_table_t *init_table;
+    struct local_var_table_t *last_table;
+    jit_list_t insts;
+    jit_list_t preds;
+    jit_list_t succs;
+    jit_list_t side_exits; // n -> PC, n+1 -> reg2stack map
+} basicblock_t;
+
+static basicblock_t *basicblock_new(memory_pool_t *mpool, VALUE *pc, int id)
+{
+    basicblock_t *bb = (basicblock_t *)memory_pool_alloc(mpool, sizeof(*bb));
+    bb->pc = pc;
+    bb->init_table = NULL;
+    bb->last_table = NULL;
+    jit_list_init(&bb->insts);
+    jit_list_init(&bb->preds);
+    jit_list_init(&bb->succs);
+    jit_list_init(&bb->side_exits);
+    return bb;
+}
+
+static unsigned basicblock_size(basicblock_t *bb)
+{
+    return bb->insts.size;
+}
+
+static void basicblock_delete(basicblock_t *bb)
+{
+    unsigned i;
+    for (i = 0; i < basicblock_size(bb); i++) {
+	lir_t inst = JIT_LIST_GET(lir_t, &bb->insts, i);
+	lir_delete(inst);
+    }
+    jit_list_delete(&bb->insts);
+    jit_list_delete(&bb->preds);
+    jit_list_delete(&bb->succs);
+    jit_list_delete(&bb->side_exits);
+
+    if (bb->init_table) {
+	TODO("");
+	// local_var_table_delete(bb->init_table);
+    }
+    if (bb->last_table) {
+	TODO("");
+	// local_var_table_delete(bb->last_table);
+    }
+}
+
+static void basicblock_link(basicblock_t *bb, basicblock_t *child)
+{
+    JIT_LIST_ADD(&bb->succs, child);
+    JIT_LIST_ADD(&child->preds, bb);
+}
+
+static basicblock_t *basicblock_get_succ(basicblock_t *bb, unsigned idx)
+{
+    return JIT_LIST_GET(basicblock_t *, &bb->succs, idx);
+}
+
+static basicblock_t *basicblock_get_pred(basicblock_t *bb, unsigned idx)
+{
+    return JIT_LIST_GET(basicblock_t *, &bb->preds, idx);
+}
+
+static void basicblock_unlink(basicblock_t *bb, basicblock_t *child)
+{
+    JIT_LIST_REMOVE(&bb->succs, child);
+    JIT_LIST_REMOVE(&child->preds, bb);
+}
+
+static void basicblock_insert_inst_before(basicblock_t *bb, lir_t target, lir_t val)
+{
+    int idx1 = JIT_LIST_INDEXOF(&bb->insts, target);
+    int idx2 = JIT_LIST_INDEXOF(&bb->insts, val);
+    assert(idx1 >= 0 && idx2 >= 0);
+    JIT_LIST_REMOVE(&bb->insts, val);
+    JIT_LIST_INSERT(&bb->insts, idx1, val);
+}
+
+static void basicblock_insert_inst_after(basicblock_t *bb, lir_t target, lir_t val)
+{
+    int idx1 = JIT_LIST_INDEXOF(&bb->insts, target);
+    int idx2 = JIT_LIST_INDEXOF(&bb->insts, val);
+    assert(idx1 >= 0 && idx2 >= 0);
+    JIT_LIST_REMOVE(&bb->insts, val);
+    JIT_LIST_INSERT(&bb->insts, idx1 + 1, val);
+}
+
+static void basicblock_swap_inst(basicblock_t *bb, int idx1, int idx2)
+{
+    lir_t inst1 = JIT_LIST_GET(lir_t, &bb->insts, idx1);
+    lir_t inst2 = JIT_LIST_GET(lir_t, &bb->insts, idx2);
+    JIT_LIST_SET(&bb->insts, idx1, inst2);
+    JIT_LIST_SET(&bb->insts, idx2, inst1);
+}
+
+static void basicblock_append(basicblock_t *bb, lir_inst_t *inst)
+{
+    JIT_LIST_ADD(&bb->insts, inst);
+    inst->parent = bb;
+}
+
+static lir_t basicblock_get(basicblock_t *bb, int i)
+{
+    return JIT_LIST_GET(lir_t, &bb->insts, i);
+}
+
+static int basicblock_get_index(basicblock_t *bb, lir_t inst)
+{
+    return JIT_LIST_INDEXOF(&bb->insts, inst);
+}
+
+static lir_t basicblock_get_last(basicblock_t *bb)
+{
+    if (basicblock_size(bb) == 0) {
+	return NULL;
+    }
+    return basicblock_get(bb, basicblock_size(bb) - 1);
+}
+
+static lir_t basicblock_get_terminator(basicblock_t *bb)
+{
+    lir_t val = basicblock_get_last(bb);
+    if (lir_is_terminator(val)) {
+	return val;
+    }
+    return NULL;
+}
+
+static lir_t basicblock_get_next(basicblock_t *bb, lir_t inst)
+{
+    int idx = basicblock_get_index(bb, inst);
+    if (0 <= idx && idx - 1 < (int)basicblock_size(bb)) {
+	return basicblock_get(bb, idx + 1);
+    }
+    return NULL;
+}
+
+/* } basicblock */
+
+/* lir_func { */
+typedef struct lir_func_t {
+    VALUE *pc;
+    basicblock_t *entry_bb;
+    struct native_func_t *compiled_code;
+    jit_list_t constants;
+    jit_list_t method_cache;
+    jit_list_t bblist;
+    jit_list_t side_exits; /* Array<side_exit_handler_t*> */
+} lir_func_t;
+
+static lir_func_t *lir_func_new(memory_pool_t *mp)
+{
+    lir_func_t *func = MEMORY_POOL_ALLOC(lir_func_t, mp);
+    jit_list_init(&func->bblist);
+    jit_list_init(&func->side_exits);
+    return func;
+}
+
+static void lir_func_delete(lir_func_t *func)
+{
+    jit_list_delete(&func->constants);
+    jit_list_delete(&func->method_cache);
+    jit_list_delete(&func->bblist);
+    jit_list_delete(&func->side_exits);
+}
+/* } lir_func */
+
+/* lir_builder_t {*/
+
+static lir_builder_t *lir_builder_init(lir_builder_t *self, memory_pool_t *mpool)
+{
+    self->mode = LIR_BUILDER_STATE_NOP;
+    self->cur_func = NULL;
+    self->cur_bb = NULL;
+    self->mpool = mpool;
+    self->inst_size = 0;
+    return self;
+}
+
+static basicblock_t *lir_builder_create_block(lir_builder_t *builder, VALUE *pc)
+{
+    unsigned id = jit_list_size(&builder->cur_func->bblist);
+    return basicblock_new(builder->mpool, pc, id);
+}
+
+static void lir_builder_reset(lir_builder_t *self, lir_func_t **func, VALUE *pc)
+{
+    assert(self->mode == LIR_BUILDER_STATE_NOP);
+    assert(*func == NULL);
+    *func = lir_func_new(self->mpool);
+    self->cur_func = *func;
+    self->cur_bb = lir_builder_create_block(self, pc);
+}
+
+static void lir_builder_compile(rujit_t *jit, lir_builder_t *self)
+{
+    self->mode = LIR_BUILDER_STATE_COMPILING;
+    TODO("");
+    self->mode = LIR_BUILDER_STATE_NOP;
+}
+
+static basicblock_t *lir_builder_cur_bb(lir_builder_t *self)
+{
+    return self->cur_bb;
+}
+
+static void lir_builder_add_inst(lir_builder_t *self, lir_t inst)
+{
+    if (LIR_OPT_PEEPHOLE_OPTIMIZATION) {
+	// TODO
+    }
+    basicblock_append(lir_builder_cur_bb(self), inst);
+    self->inst_size += 1;
+}
+
+static int lir_builder_is_full(lir_builder_t *self)
+{
+    return self->inst_size >= LIR_MAX_TRACE_LENGTH;
+}
+
+static void lir_builder_set_bb(lir_builder_t *self, basicblock_t *bb)
+{
+    self->cur_bb = bb;
+}
+
+static void lir_builder_abort(lir_builder_t *self)
+{
+    self->mode = LIR_BUILDER_STATE_NOP;
+    TODO("");
+}
+
+static basicblock_t *lir_builder_find_block(lir_builder_t *self, VALUE *pc)
+{
+    int i;
+    jit_list_t *bblist = &self->cur_func->bblist;
+    for (i = (int)jit_list_size(bblist) - 1; i >= 0; i--) {
+	basicblock_t *bb = JIT_LIST_GET(basicblock_t *, bblist, i);
+	if (bb->pc == pc) {
+	    return bb;
+	}
+    }
+    return NULL;
+}
+
+static void lir_builder_dispose(lir_builder_t *self)
+{
+    assert(self->mode == LIR_BUILDER_STATE_NOP);
+    TODO("");
+}
+
+/* lir_builder_t }*/
+
+/* native_func_t {*/
+
+typedef struct rujit_backend_t {
+    void *ctx;
+    void (*f_init)(rujit_t *, struct rujit_backend_t *self);
+    void (*f_delete)(rujit_t *, struct rujit_backend_t *self);
+    native_raw_func_t *(*f_compile)(rujit_t *, void *ctx, lir_func_t *func);
+    void (*f_unload)(rujit_t *, void *ctx, native_func_t *func);
+} rujit_backend_t;
+
+static void dummy_init(rujit_t *jit, struct rujit_backend_t *self)
+{
+}
+
+static void dummy_delete(rujit_t *jit, struct rujit_backend_t *self)
+{
+}
+
+static native_raw_func_t *dummy_compile(rujit_t *jit, void *ctx, lir_func_t *func)
+{
+    return NULL;
+}
+
+static void dummy_unload(rujit_t *jit, void *ctx, native_func_t *func)
+{
+}
+
+static rujit_backend_t backend_dummy = {
+    NULL,
+    dummy_init,
+    dummy_delete,
+    dummy_compile,
+    dummy_unload
+};
+
+#define RC_INC(O) ((O)->refc++)
+#define RC_DEC(O) (--(O)->refc)
+#define RC_INIT(O) ((O)->refc = 1)
+#define RC_CHECK(O) ((O)->refc == 0)
+
+// static native_func_t *native_func_new(lir_func_t *origin)
+// {
+//     native_func_t *func = (native_func_t *)malloc(sizeof(native_func_t));
+//     func->flag = 0;
+//     RC_INIT(func);
+//     func->handler = NULL;
+//     func->code = NULL;
+//     func->origin = origin;
+//     return func;
+// }
+
+static void native_func_invalidate(native_func_t *func)
+{
+    rujit_t *jit = current_jit;
+    jit->backend->f_unload(jit, jit->backend->ctx, func);
+}
+
+static void native_func_delete(native_func_t *func)
+{
+    RC_DEC(func);
+    assert(RC_CHECK(func));
+    free(func);
+}
+
+// enum native_func_call_status {
+//     NATIVE_FUNC_ERROR = 0,
+//     NATIVE_FUNC_SUCCESS = 1,
+//     NATIVE_FUNC_DELETED = 1 << 1,
+//     NATIVE_FUNC_INVALIDATED = 1 << 2
+// };
 //
-//  jit_core.c -
+// static int native_func_invoke(native_func_t *func, VALUE *return_value)
+// {
+//     *return_value = 0;
+//     RC_INC(func);
+//     *return_value = ((native_raw_func_t)func->code)();
+//     RC_DEC(func);
+//     if ((func->flag & NATIVE_FUNC_INVALIDATED) && RC_CHECK0(func)) {
+// 	native_func_delete(func);
+// 	return NATIVE_FUNC_DELETED;
+//     }
+//     return NATIVE_FUNC_SUCCESS;
+// }
 //
-//  $Author$
+// static void native_func_manager_remove(native_func_manager_t *mng, VALUE key)
+// {
+//     hashmap_delete(&mng->codes, (hashmap_entry_destructor_t) native_func_delete);
+// }
 //
-//  Copyright (C) 2014 Masahiro Ide
+// static void native_func_manager_remove_all(native_func_manager_t *mng)
+// {
+//     hashmap_delete(&mng->codes, (hashmap_entry_destructor_t) native_func_delete);
+// }
 //
-//**********************************************************************/
-//static lir_t trace_recorder_add_inst(trace_recorder_t *recorder, lir_t inst, unsigned inst_size);
+// static void native_func_manager_delete(native_func_manager_t *mng)
+// {
+//     native_func_manager_remove_all(mng);
+// }
+
+/* native_func_t }*/
+
+/* native_func_manager_t {*/
+
+static native_func_manager_t *native_func_manager_init(native_func_manager_t *self)
+{
+    hashmap_init(&self->traces, 4);
+    jit_list_init(&self->compiled_codes);
+    hashmap_init(&self->valid_code0, 1);
+    hashmap_init(&self->valid_code1, 1);
+    return self;
+}
+
+static void native_func_manager_add(native_func_manager_t *self, native_func_t *func)
+{
+    JIT_LIST_ADD(&self->compiled_codes, func);
+}
+
+static void native_func_manager_add_trace(native_func_manager_t *self, jit_trace_t *trace)
+{
+    hashmap_set(&self->traces, (hashmap_data_t)trace->start_pc, (hashmap_data_t)trace);
+}
+
+static jit_trace_t *native_func_manager_find_trace(native_func_manager_t *self, VALUE *pc)
+{
+    return (jit_trace_t *)hashmap_get(&self->traces, (uintptr_t)pc);
+}
+
+enum native_func_invalidate_type {
+    NATIVE_FUNC_INVALIDATE_TYPE_METHOD = 0,
+    NATIVE_FUNC_INVALIDATE_TYPE_BLOC = 1
+};
+
+static void native_func_manager_invalidate(native_func_manager_t *self, enum native_func_invalidate_type type, VALUE val)
+{
+    native_func_t *func = NULL;
+    hashmap_t *valid_code = NULL;
+    if (type == NATIVE_FUNC_INVALIDATE_TYPE_METHOD) {
+	valid_code = &self->valid_code0;
+    }
+    else {
+	valid_code = &self->valid_code1;
+    }
+    func = (native_func_t *)hashmap_get(valid_code, (uintptr_t)val);
+    native_func_invalidate(func);
+}
+
+static void native_func_invalidate(native_func_t *func);
+static void native_func_delete(native_func_t *func);
+
+static void native_func_manager_dispose(native_func_manager_t *self)
+{
+    unsigned i;
+    hashmap_dispose(&self->traces, (hashmap_entry_destructor_t)native_func_delete);
+    for (i = 0; i < jit_list_size(&self->compiled_codes); i++) {
+	native_func_t *func = JIT_LIST_GET(native_func_t *, &self->compiled_codes, i);
+	native_func_delete(func);
+    }
+    jit_list_delete(&self->compiled_codes);
+}
+
+/* native_func_manager_t }*/
+
 //
 ///* const pool { */
 //#define CONST_POOL_INIT_SIZE 1
@@ -274,15 +809,6 @@
 //    return vt;
 //}
 ///* } variable_table */
-//
-//static void dump_inst(jit_event_t *e)
-//{
-//    if (DUMP_INST > 0) {
-//	long pc = (e->pc - e->cfp->iseq->iseq_encoded);
-//	fprintf(stderr, "%04ld pc=%p %02d %s\n",
-//	        pc, e->pc, e->opcode, insn_name(e->opcode));
-//    }
-//}
 //
 //static void dump_lir_inst(lir_t inst)
 //{

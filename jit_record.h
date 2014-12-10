@@ -42,7 +42,7 @@
 //    return e->pc;
 //}
 //
-//static jit_snapshot_t *take_snapshot(trace_recorder_t *rec)
+//static jit_snapshot_t *take_snapshot(lir_builder_t *builder)
 //{
 //    jit_event_t *e = rec->current_event;
 //    return trace_recorder_take_snapshot(rec, REG_PC, 0);
@@ -51,7 +51,7 @@
 //#define ATTRIBUTE (1)
 //#define INSTANCE (0)
 //
-//static lir_t emit_get_prop(trace_recorder_t *rec, CALL_INFO ci, lir_t recv)
+//static lir_t emit_get_prop(lir_builder_t *builder, CALL_INFO ci, lir_t recv)
 //{
 //    jit_event_t *e = rec->current_event;
 //    VALUE obj = ci->recv;
@@ -63,7 +63,7 @@
 //    return Emit_GetPropertyName(rec, recv, index);
 //}
 //
-//static lir_t emit_set_prop(trace_recorder_t *rec, CALL_INFO ci, lir_t recv, lir_t val)
+//static lir_t emit_set_prop(lir_builder_t *builder, CALL_INFO ci, lir_t recv, lir_t val)
 //{
 //    jit_event_t *e = rec->current_event;
 //    VALUE obj = ci->recv;
@@ -82,13 +82,13 @@
 //    return Rval;
 //}
 //
-//static lir_t emit_call_method(trace_recorder_t *rec, CALL_INFO ci)
+//static lir_t emit_call_method(lir_builder_t *builder, CALL_INFO ci)
 //{
 //    __int3__;
 //    return NULL;
 //}
 //
-//static lir_t StackPop(trace_recorder_t *rec)
+//static lir_t StackPop(lir_builder_t *builder)
 //{
 //    int popped = 0;
 //    lir_t Rval = regstack_pop(rec, &(rec)->regstack, &popped);
@@ -98,13 +98,13 @@
 //    return Rval;
 //}
 //
-//static void StackPush(trace_recorder_t *rec, lir_t Rval)
+//static void StackPush(lir_builder_t *builder, lir_t Rval)
 //{
 //    regstack_push(rec, &(rec)->regstack, Rval);
 //    // EmitIR(StackPush, Rval);
 //}
 //
-//static lir_t emit_load_const(trace_recorder_t *rec, VALUE val)
+//static lir_t emit_load_const(lir_builder_t *builder, VALUE val)
 //{
 //    unsigned inst_size;
 //    basicblock_t *BB = lir_builder_get_entry_bb(rec->builder);
@@ -147,23 +147,23 @@
 //    return Rval;
 //}
 //
-//static lir_t trace_recorder_get_localvar(trace_recorder_t *rec, basicblock_t *bb, int lev, int idx)
+//static lir_t trace_recorder_get_localvar(lir_builder_t *builder, basicblock_t *bb, int lev, int idx)
 //{
 //    return variable_table_get(bb->last_table, idx, lev, 0);
 //}
 //
-//static lir_t trace_recorder_get_self(trace_recorder_t *rec, basicblock_t *bb)
+//static lir_t trace_recorder_get_self(lir_builder_t *builder, basicblock_t *bb)
 //{
 //    return variable_table_get_self(bb->last_table, 0);
 //}
 //
-//static lir_t trace_recorder_set_self(trace_recorder_t *rec, basicblock_t *bb, lir_t val)
+//static lir_t trace_recorder_set_self(lir_builder_t *builder, basicblock_t *bb, lir_t val)
 //{
 //    variable_table_set_self(bb->last_table, 0, val);
 //    return val;
 //}
 //
-//static void trace_recorder_set_localvar(trace_recorder_t *rec, basicblock_t *bb, int level, int idx, lir_t val)
+//static void trace_recorder_set_localvar(lir_builder_t *builder, basicblock_t *bb, int level, int idx, lir_t val)
 //{
 //    variable_table_set(bb->last_table, idx, level, 0, val);
 //    if (level > 0) {
@@ -194,7 +194,7 @@
 //
 //#define CREATE_BLOCK(REC, PC) trace_recorder_create_block(REC, PC)
 //
-//static void EmitJump(trace_recorder_t *rec, VALUE *pc, int link)
+//static void EmitJump(lir_builder_t *builder, VALUE *pc, int link)
 //{
 //    basicblock_t *bb = NULL;
 //    if (link == 0) {
@@ -209,14 +209,14 @@
 //    lir_builder_set_cur_bb(rec->builder, bb);
 //}
 //
-//static lir_t EmitEnvLoad(trace_recorder_t *rec, int level, int idx)
+//static lir_t EmitEnvLoad(lir_builder_t *builder, int level, int idx)
 //{
 //    lir_t Rval = EmitIR(EnvLoad, (int)level, (int)idx);
 //    trace_recorder_set_localvar(rec, lir_builder_cur_bb(rec->builder), (int)level, (int)idx, Rval);
 //    return Rval;
 //}
 //
-//static lir_t EmitEnvStore(trace_recorder_t *rec, int level, int idx, lir_t Rval)
+//static lir_t EmitEnvStore(lir_builder_t *builder, int level, int idx, lir_t Rval)
 //{
 //    Rval = EmitIR(EnvStore, (int)level, (int)idx, Rval);
 //    trace_recorder_set_localvar(rec, lir_builder_cur_bb(rec->builder), (int)level, (int)idx, Rval);
@@ -225,37 +225,37 @@
 //
 //#include "bc2lir.c"
 //
-//static void record_getspecial(trace_recorder_t *rec, jit_event_t *e)
+//static void record_getspecial(lir_builder_t *builder, jit_event_t *e)
 //{
 //    not_support_op(rec, e, "getspecial");
 //}
 //
-//static void record_setspecial(trace_recorder_t *rec, jit_event_t *e)
+//static void record_setspecial(lir_builder_t *builder, jit_event_t *e)
 //{
 //    not_support_op(rec, e, "setspecial");
 //}
 //
-//static void record_getclassvariable(trace_recorder_t *rec, jit_event_t *e)
+//static void record_getclassvariable(lir_builder_t *builder, jit_event_t *e)
 //{
 //    not_support_op(rec, e, "getclassvariable");
 //}
 //
-//static void record_setclassvariable(trace_recorder_t *rec, jit_event_t *e)
+//static void record_setclassvariable(lir_builder_t *builder, jit_event_t *e)
 //{
 //    not_support_op(rec, e, "setclassvariable");
 //}
 //
-//static void record_getconstant(trace_recorder_t *rec, jit_event_t *e)
+//static void record_getconstant(lir_builder_t *builder, jit_event_t *e)
 //{
 //    not_support_op(rec, e, "getconstant");
 //}
 //
-//static void record_setconstant(trace_recorder_t *rec, jit_event_t *e)
+//static void record_setconstant(lir_builder_t *builder, jit_event_t *e)
 //{
 //    not_support_op(rec, e, "setconstant");
 //}
 //
-//static void record_getinstancevariable(trace_recorder_t *rec, jit_event_t *e)
+//static void record_getinstancevariable(lir_builder_t *builder, jit_event_t *e)
 //{
 //    IC ic = (IC)GET_OPERAND(2);
 //    ID id = (ID)GET_OPERAND(1);
@@ -273,7 +273,7 @@
 //    not_support_op(rec, e, "getinstancevariable");
 //}
 //
-//static void record_setinstancevariable(trace_recorder_t *rec, jit_event_t *e)
+//static void record_setinstancevariable(lir_builder_t *builder, jit_event_t *e)
 //{
 //    IC ic = (IC)GET_OPERAND(2);
 //    ID id = (ID)GET_OPERAND(1);
@@ -333,7 +333,7 @@
 //    return klass;
 //}
 //
-//static void record_putspecialobject(trace_recorder_t *rec, jit_event_t *e)
+//static void record_putspecialobject(lir_builder_t *builder, jit_event_t *e)
 //{
 //    enum vm_special_object_type type = (enum vm_special_object_type)GET_OPERAND(1);
 //    VALUE val = 0;
@@ -353,7 +353,7 @@
 //    _PUSH(EmitIR(LoadConstSpecialObject, val));
 //}
 //
-//static void record_concatstrings(trace_recorder_t *rec, jit_event_t *e)
+//static void record_concatstrings(lir_builder_t *builder, jit_event_t *e)
 //{
 //    rb_num_t num = (rb_num_t)GET_OPERAND(1);
 //    rb_num_t i = num - 1;
@@ -368,7 +368,7 @@
 //    _PUSH(Rval);
 //}
 //
-//static void record_toregexp(trace_recorder_t *rec, jit_event_t *e)
+//static void record_toregexp(lir_builder_t *builder, jit_event_t *e)
 //{
 //    rb_num_t i;
 //    rb_num_t cnt = (rb_num_t)GET_OPERAND(2);
@@ -382,7 +382,7 @@
 //    _PUSH(EmitIR(AllocRegexFromArray, Rary, (int)opt));
 //}
 //
-//static void record_newarray(trace_recorder_t *rec, jit_event_t *e)
+//static void record_newarray(lir_builder_t *builder, jit_event_t *e)
 //{
 //    rb_num_t i, num = (rb_num_t)GET_OPERAND(1);
 //    lir_t argv[num];
@@ -392,14 +392,14 @@
 //    _PUSH(EmitIR(AllocArray, (int)num, argv));
 //}
 //
-//static void record_duparray(trace_recorder_t *rec, jit_event_t *e)
+//static void record_duparray(lir_builder_t *builder, jit_event_t *e)
 //{
 //    VALUE val = (VALUE)GET_OPERAND(1);
 //    lir_t Rval = emit_load_const(rec, val);
 //    _PUSH(EmitIR(ArrayDup, Rval));
 //}
 //
-//static void record_expandarray(trace_recorder_t *rec, jit_event_t *e)
+//static void record_expandarray(lir_builder_t *builder, jit_event_t *e)
 //{
 //    rb_num_t num = (rb_num_t)GET_OPERAND(1);
 //    rb_num_t flag = (rb_num_t)GET_OPERAND(2);
@@ -481,17 +481,17 @@
 //    RB_GC_GUARD(ary);
 //}
 //
-//static void record_concatarray(trace_recorder_t *rec, jit_event_t *e)
+//static void record_concatarray(lir_builder_t *builder, jit_event_t *e)
 //{
 //    not_support_op(rec, e, "concatarray");
 //}
 //
-//static void record_splatarray(trace_recorder_t *rec, jit_event_t *e)
+//static void record_splatarray(lir_builder_t *builder, jit_event_t *e)
 //{
 //    not_support_op(rec, e, "splatarray");
 //}
 //
-//static void record_newhash(trace_recorder_t *rec, jit_event_t *e)
+//static void record_newhash(lir_builder_t *builder, jit_event_t *e)
 //{
 //    rb_num_t i, num = (rb_num_t)GET_OPERAND(1);
 //    lir_t argv[num];
@@ -502,7 +502,7 @@
 //    _PUSH(EmitIR(AllocHash, (int)num, argv));
 //}
 //
-//static void record_newrange(trace_recorder_t *rec, jit_event_t *e)
+//static void record_newrange(lir_builder_t *builder, jit_event_t *e)
 //{
 //    rb_num_t flag = (rb_num_t)GET_OPERAND(1);
 //    lir_t Rhigh = _POP();
@@ -510,7 +510,7 @@
 //    _PUSH(EmitIR(AllocRange, Rlow, Rhigh, (int)flag));
 //}
 //
-//static void record_dupn(trace_recorder_t *rec, jit_event_t *e)
+//static void record_dupn(lir_builder_t *builder, jit_event_t *e)
 //{
 //    rb_num_t i, n = (rb_num_t)GET_OPERAND(1);
 //    lir_t argv[n];
@@ -523,7 +523,7 @@
 //    }
 //}
 //
-//static void record_topn(trace_recorder_t *rec, jit_event_t *e)
+//static void record_topn(lir_builder_t *builder, jit_event_t *e)
 //{
 //    lir_t Rval;
 //    rb_num_t n = (rb_num_t)GET_OPERAND(1);
@@ -532,14 +532,14 @@
 //    _PUSH(Rval);
 //}
 //
-//static void record_setn(trace_recorder_t *rec, jit_event_t *e)
+//static void record_setn(lir_builder_t *builder, jit_event_t *e)
 //{
 //    rb_num_t n = (rb_num_t)GET_OPERAND(1);
 //    lir_t Rval = _TOPN(0);
 //    _SET(n, Rval);
 //}
 //
-//static void record_adjuststack(trace_recorder_t *rec, jit_event_t *e)
+//static void record_adjuststack(lir_builder_t *builder, jit_event_t *e)
 //{
 //    rb_num_t i, n = (rb_num_t)GET_OPERAND(1);
 //    for (i = 0; i < n; i++) {
@@ -547,12 +547,12 @@
 //    }
 //}
 //
-//static void record_defined(trace_recorder_t *rec, jit_event_t *e)
+//static void record_defined(lir_builder_t *builder, jit_event_t *e)
 //{
 //    not_support_op(rec, e, "defined");
 //}
 //
-//static void record_checkmatch(trace_recorder_t *rec, jit_event_t *e)
+//static void record_checkmatch(lir_builder_t *builder, jit_event_t *e)
 //{
 //    lir_t Rpattern = _POP();
 //    lir_t Rtarget = _POP();
@@ -567,19 +567,19 @@
 //    }
 //}
 //
-//static void record_defineclass(trace_recorder_t *rec, jit_event_t *e)
+//static void record_defineclass(lir_builder_t *builder, jit_event_t *e)
 //{
 //    not_support_op(rec, e, "defineclass");
 //}
 //
 //#include "jit_args.h"
 //
-//static void record_send(trace_recorder_t *rec, jit_event_t *e)
+//static void record_send(lir_builder_t *builder, jit_event_t *e)
 //{
 //    __int3__;
 //}
 //
-//static void record_invokesuper(trace_recorder_t *rec, jit_event_t *e)
+//static void record_invokesuper(lir_builder_t *builder, jit_event_t *e)
 //{
 //    CALL_INFO ci = (CALL_INFO)GET_OPERAND(1);
 //    lir_t Rblock = 0;
@@ -603,7 +603,7 @@
 //    //EmitMethodCall(rec, e, ci, block, Rblock, 1);
 //}
 //
-//static void record_invokeblock(trace_recorder_t *rec, jit_event_t *e)
+//static void record_invokeblock(lir_builder_t *builder, jit_event_t *e)
 //{
 //    const rb_block_t *block;
 //    CALL_INFO ci = (CALL_INFO)GET_OPERAND(1);
@@ -654,7 +654,7 @@
 //    trace_recorder_push_variable_table(rec, ret);
 //}
 //
-//static void record_leave(trace_recorder_t *rec, jit_event_t *e)
+//static void record_leave(lir_builder_t *builder, jit_event_t *e)
 //{
 //    lir_t Val;
 //    variable_table_t *vtable;
@@ -683,20 +683,20 @@
 //    _PUSH(Val);
 //}
 //
-//static void record_throw(trace_recorder_t *rec, jit_event_t *e)
+//static void record_throw(lir_builder_t *builder, jit_event_t *e)
 //{
 //    // unreachable
 //    not_support_op(rec, e, "throw");
 //}
 //
-//static void record_jump(trace_recorder_t *rec, jit_event_t *e)
+//static void record_jump(lir_builder_t *builder, jit_event_t *e)
 //{
 //    OFFSET dst = (OFFSET)GET_OPERAND(1);
 //    VALUE *target_pc = REG_PC + insn_len(BIN(jump)) + dst;
 //    EmitJump(rec, target_pc, 1);
 //}
 //
-//static void record_branchif(trace_recorder_t *rec, jit_event_t *e)
+//static void record_branchif(lir_builder_t *builder, jit_event_t *e)
 //{
 //    OFFSET dst = (OFFSET)GET_OPERAND(1);
 //    lir_t Rval = _POP();
@@ -716,7 +716,7 @@
 //    }
 //}
 //
-//static void record_branchunless(trace_recorder_t *rec, jit_event_t *e)
+//static void record_branchunless(lir_builder_t *builder, jit_event_t *e)
 //{
 //    OFFSET dst = (OFFSET)GET_OPERAND(1);
 //    lir_t Rval = _POP();
@@ -739,7 +739,7 @@
 //    EmitJump(rec, target_pc, 1);
 //}
 //
-//static void record_getinlinecache(trace_recorder_t *rec, jit_event_t *e)
+//static void record_getinlinecache(lir_builder_t *builder, jit_event_t *e)
 //{
 //    IC ic = (IC)GET_OPERAND(2);
 //    if (ic->ic_serial != GET_GLOBAL_CONSTANT_STATE()) {
@@ -750,12 +750,12 @@
 //    _PUSH(emit_load_const(rec, ic->ic_value.value));
 //}
 //
-//static void record_setinlinecache(trace_recorder_t *rec, jit_event_t *e)
+//static void record_setinlinecache(lir_builder_t *builder, jit_event_t *e)
 //{
 //    not_support_op(rec, e, "setinlinecache");
 //}
 //
-//static void record_once(trace_recorder_t *rec, jit_event_t *e)
+//static void record_once(lir_builder_t *builder, jit_event_t *e)
 //{
 //    IC ic = (IC)GET_OPERAND(2);
 //    //ISEQ iseq = (ISEQ)GET_OPERAND(1);
@@ -770,7 +770,7 @@
 //    }
 //}
 //
-//static void record_opt_case_dispatch(trace_recorder_t *rec, jit_event_t *e)
+//static void record_opt_case_dispatch(lir_builder_t *builder, jit_event_t *e)
 //{
 //    lir_t Rkey = _TOPN(0);
 //    OFFSET else_offset = (OFFSET)GET_OPERAND(2);
@@ -835,129 +835,129 @@
 //    }
 //}
 //
-//static void record_opt_call_c_function(trace_recorder_t *rec, jit_event_t *e)
+//static void record_opt_call_c_function(lir_builder_t *builder, jit_event_t *e)
 //{
 //    not_support_op(rec, e, "opt_call_c_function");
 //}
 //
-//static void record_bitblt(trace_recorder_t *rec, jit_event_t *e)
+//static void record_bitblt(lir_builder_t *builder, jit_event_t *e)
 //{
 //    VALUE str = rb_str_new2("a bit of bacon, lettuce and tomato");
 //    _PUSH(emit_load_const(rec, str));
 //}
 //
-//static void record_answer(trace_recorder_t *rec, jit_event_t *e)
+//static void record_answer(lir_builder_t *builder, jit_event_t *e)
 //{
 //    _PUSH(emit_load_const(rec, INT2FIX(42)));
 //}
 //
-//static void record_opt_succ(trace_recorder_t *rec, jit_event_t *e)
+//static void record_opt_succ(lir_builder_t *builder, jit_event_t *e)
 //{
 //    __int3__;
 //}
 //
-//static void record_opt_not(trace_recorder_t *rec, jit_event_t *e)
+//static void record_opt_not(lir_builder_t *builder, jit_event_t *e)
 //{
 //    __int3__;
 //}
-//
-//static void record_insn(trace_recorder_t *rec, jit_event_t *e)
-//{
-//    int opcode = e->opcode;
-//    dump_inst(e);
-//#define CASE_RECORD(op)      \
-//    case BIN(op):            \
-//	record_##op(rec, e); \
-//	break
-//    switch (opcode) {
-//	CASE_RECORD(nop);
-//	CASE_RECORD(getlocal);
-//	CASE_RECORD(setlocal);
-//	CASE_RECORD(getspecial);
-//	CASE_RECORD(setspecial);
-//	CASE_RECORD(getinstancevariable);
-//	CASE_RECORD(setinstancevariable);
-//	CASE_RECORD(getclassvariable);
-//	CASE_RECORD(setclassvariable);
-//	CASE_RECORD(getconstant);
-//	CASE_RECORD(setconstant);
-//	CASE_RECORD(getglobal);
-//	CASE_RECORD(setglobal);
-//	CASE_RECORD(putnil);
-//	CASE_RECORD(putself);
-//	CASE_RECORD(putobject);
-//	CASE_RECORD(putspecialobject);
-//	CASE_RECORD(putiseq);
-//	CASE_RECORD(putstring);
-//	CASE_RECORD(concatstrings);
-//	CASE_RECORD(tostring);
-//	CASE_RECORD(toregexp);
-//	CASE_RECORD(newarray);
-//	CASE_RECORD(duparray);
-//	CASE_RECORD(expandarray);
-//	CASE_RECORD(concatarray);
-//	CASE_RECORD(splatarray);
-//	CASE_RECORD(newhash);
-//	CASE_RECORD(newrange);
-//	CASE_RECORD(pop);
-//	CASE_RECORD(dup);
-//	CASE_RECORD(dupn);
-//	CASE_RECORD(swap);
-//	CASE_RECORD(reput);
-//	CASE_RECORD(topn);
-//	CASE_RECORD(setn);
-//	CASE_RECORD(adjuststack);
-//	CASE_RECORD(defined);
-//	CASE_RECORD(checkmatch);
-//	CASE_RECORD(trace);
-//	CASE_RECORD(defineclass);
-//	CASE_RECORD(send);
-//	CASE_RECORD(opt_str_freeze);
-//	CASE_RECORD(opt_send_without_block);
-//	CASE_RECORD(invokesuper);
-//	CASE_RECORD(invokeblock);
-//	CASE_RECORD(leave);
-//	CASE_RECORD(throw);
-//	CASE_RECORD(jump);
-//	CASE_RECORD(branchif);
-//	CASE_RECORD(branchunless);
-//	CASE_RECORD(getinlinecache);
-//	CASE_RECORD(setinlinecache);
-//	CASE_RECORD(once);
-//	CASE_RECORD(opt_case_dispatch);
-//	CASE_RECORD(opt_plus);
-//	CASE_RECORD(opt_minus);
-//	CASE_RECORD(opt_mult);
-//	CASE_RECORD(opt_div);
-//	CASE_RECORD(opt_mod);
-//	CASE_RECORD(opt_eq);
-//	CASE_RECORD(opt_neq);
-//	CASE_RECORD(opt_lt);
-//	CASE_RECORD(opt_le);
-//	CASE_RECORD(opt_gt);
-//	CASE_RECORD(opt_ge);
-//	CASE_RECORD(opt_ltlt);
-//	CASE_RECORD(opt_aref);
-//	CASE_RECORD(opt_aset);
-//	CASE_RECORD(opt_aset_with);
-//	CASE_RECORD(opt_aref_with);
-//	CASE_RECORD(opt_length);
-//	CASE_RECORD(opt_size);
-//	CASE_RECORD(opt_empty_p);
-//	CASE_RECORD(opt_succ);
-//	CASE_RECORD(opt_not);
-//	CASE_RECORD(opt_regexpmatch1);
-//	CASE_RECORD(opt_regexpmatch2);
-//	CASE_RECORD(opt_call_c_function);
-//	CASE_RECORD(bitblt);
-//	CASE_RECORD(answer);
-//	CASE_RECORD(getlocal_OP__WC__0);
-//	CASE_RECORD(getlocal_OP__WC__1);
-//	CASE_RECORD(setlocal_OP__WC__0);
-//	CASE_RECORD(setlocal_OP__WC__1);
-//	CASE_RECORD(putobject_OP_INT2FIX_O_0_C_);
-//	CASE_RECORD(putobject_OP_INT2FIX_O_1_C_);
-//	default:
-//	    assert(0 && "unreachable");
-//    }
-//}
+
+static void record_insn(lir_builder_t *builder, jit_event_t *e)
+{
+    int opcode = e->opcode;
+    dump_inst(e);
+#define CASE_RECORD(op)              \
+    case BIN(op):                    \
+	/*record_##op(builder, e);*/ \
+	break
+    switch (opcode) {
+	CASE_RECORD(nop);
+	CASE_RECORD(getlocal);
+	CASE_RECORD(setlocal);
+	CASE_RECORD(getspecial);
+	CASE_RECORD(setspecial);
+	CASE_RECORD(getinstancevariable);
+	CASE_RECORD(setinstancevariable);
+	CASE_RECORD(getclassvariable);
+	CASE_RECORD(setclassvariable);
+	CASE_RECORD(getconstant);
+	CASE_RECORD(setconstant);
+	CASE_RECORD(getglobal);
+	CASE_RECORD(setglobal);
+	CASE_RECORD(putnil);
+	CASE_RECORD(putself);
+	CASE_RECORD(putobject);
+	CASE_RECORD(putspecialobject);
+	CASE_RECORD(putiseq);
+	CASE_RECORD(putstring);
+	CASE_RECORD(concatstrings);
+	CASE_RECORD(tostring);
+	CASE_RECORD(toregexp);
+	CASE_RECORD(newarray);
+	CASE_RECORD(duparray);
+	CASE_RECORD(expandarray);
+	CASE_RECORD(concatarray);
+	CASE_RECORD(splatarray);
+	CASE_RECORD(newhash);
+	CASE_RECORD(newrange);
+	CASE_RECORD(pop);
+	CASE_RECORD(dup);
+	CASE_RECORD(dupn);
+	CASE_RECORD(swap);
+	CASE_RECORD(reput);
+	CASE_RECORD(topn);
+	CASE_RECORD(setn);
+	CASE_RECORD(adjuststack);
+	CASE_RECORD(defined);
+	CASE_RECORD(checkmatch);
+	CASE_RECORD(trace);
+	CASE_RECORD(defineclass);
+	CASE_RECORD(send);
+	CASE_RECORD(opt_str_freeze);
+	CASE_RECORD(opt_send_without_block);
+	CASE_RECORD(invokesuper);
+	CASE_RECORD(invokeblock);
+	CASE_RECORD(leave);
+	CASE_RECORD(throw);
+	CASE_RECORD(jump);
+	CASE_RECORD(branchif);
+	CASE_RECORD(branchunless);
+	CASE_RECORD(getinlinecache);
+	CASE_RECORD(setinlinecache);
+	CASE_RECORD(once);
+	CASE_RECORD(opt_case_dispatch);
+	CASE_RECORD(opt_plus);
+	CASE_RECORD(opt_minus);
+	CASE_RECORD(opt_mult);
+	CASE_RECORD(opt_div);
+	CASE_RECORD(opt_mod);
+	CASE_RECORD(opt_eq);
+	CASE_RECORD(opt_neq);
+	CASE_RECORD(opt_lt);
+	CASE_RECORD(opt_le);
+	CASE_RECORD(opt_gt);
+	CASE_RECORD(opt_ge);
+	CASE_RECORD(opt_ltlt);
+	CASE_RECORD(opt_aref);
+	CASE_RECORD(opt_aset);
+	CASE_RECORD(opt_aset_with);
+	CASE_RECORD(opt_aref_with);
+	CASE_RECORD(opt_length);
+	CASE_RECORD(opt_size);
+	CASE_RECORD(opt_empty_p);
+	CASE_RECORD(opt_succ);
+	CASE_RECORD(opt_not);
+	CASE_RECORD(opt_regexpmatch1);
+	CASE_RECORD(opt_regexpmatch2);
+	CASE_RECORD(opt_call_c_function);
+	CASE_RECORD(bitblt);
+	CASE_RECORD(answer);
+	CASE_RECORD(getlocal_OP__WC__0);
+	CASE_RECORD(getlocal_OP__WC__1);
+	CASE_RECORD(setlocal_OP__WC__0);
+	CASE_RECORD(setlocal_OP__WC__1);
+	CASE_RECORD(putobject_OP_INT2FIX_O_0_C_);
+	CASE_RECORD(putobject_OP_INT2FIX_O_1_C_);
+	default:
+	    assert(0 && "unreachable");
+    }
+}
