@@ -117,8 +117,26 @@ typedef struct rujit_t {
 
 static rujit_t *current_jit;
 
-int disable_jit = 0;
+static int disable_jit = 0;
 
+static void jit_global_default_params_setup(struct rb_vm_global_state *global_state_ptr)
+{
+    char *disable_jit_ptr;
+    disable_jit_ptr = getenv("RUJIT_DISABLE_JIT");
+    if (disable_jit_ptr != NULL) {
+	int disable_jit_i = atoi(disable_jit_ptr);
+	if (RTEST(ruby_verbose)) {
+	    fprintf(stderr, "disable_jit=%d\n", disable_jit_i);
+	}
+	disable_jit = disable_jit_i;
+    }
+    //{
+    //    int i;
+    //    for (i = 0; i < BOP_LAST_; i++) {
+    //        jit_vm_redefined_flag[i] = global_state_ptr->_ruby_vm_redefined_flag[i];
+    //    }
+    //}
+}
 #include "jit_core.h"
 
 static void jit_mark(void *ptr)
@@ -201,6 +219,7 @@ static int trace_is_compiled(jit_trace_t *trace)
 
 void Init_rawjit(struct rb_vm_global_state *global_state_ptr)
 {
+    jit_global_default_params_setup(global_state_ptr);
     if (!disable_jit) {
 	rb_cMath = rb_singleton_class(rb_mMath);
 	rb_gc_register_mark_object(rb_cMath);
