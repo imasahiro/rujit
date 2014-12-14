@@ -396,7 +396,6 @@ int rujit_invoke_or_make_trace(rb_thread_t *th, rb_control_frame_t *reg_cfp, VAL
 	//}
 	start_recording();
 	lir_builder_reset(&jit->builder, &trace->lir_func, trace->start_pc);
-	record_insn(&jit->builder, e);
     }
     return 0;
 }
@@ -407,6 +406,7 @@ void rujit_push_compile_queue(rb_thread_t *th, rb_control_frame_t *cfp, rb_metho
     assert(0 && "not implemented");
 }
 
+#include "lir.c"
 #include "jit_dump.h"
 #include "jit_record.h"
 // #include "jit_codegen.h"

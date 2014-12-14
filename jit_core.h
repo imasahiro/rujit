@@ -17,7 +17,7 @@ typedef struct lir_inst_t {
     jit_list_t *user;
 } lir_inst_t, *lir_t;
 
-static lir_t lir_init(lir_t inst, size_t size, unsigned opcode)
+static lir_t lir_inst_init(lir_t inst, size_t size, unsigned opcode)
 {
     memset(inst, 0, size);
     inst->opcode = opcode;
@@ -38,10 +38,10 @@ static void lir_delete(lir_t inst)
 
 /* } lir_inst */
 
-#define ADD_INST(REC, INST) ADD_INST_N(REC, INST, 0)
+#define ADD_INST(BUILDER, INST) ADD_INST_N(BUILDER, INST, 0)
 
-#define ADD_INST_N(REC, INST, SIZE) \
-    lir_builder_add_inst(REC, &(INST)->base, sizeof(*INST) + sizeof(lir_t) * (SIZE))
+#define ADD_INST_N(BUILDER, INST, SIZE) \
+    lir_builder_add_inst(BUILDER, &(INST)->base, sizeof(*INST) + sizeof(lir_t) * (SIZE))
 
 #include "lir_template.h"
 // #include "lir.c"
@@ -308,6 +308,11 @@ static lir_builder_t *lir_builder_init(lir_builder_t *self, memory_pool_t *mpool
     return self;
 }
 
+static int lir_getid(lir_t inst)
+{
+    return inst->id;
+}
+
 static basicblock_t *lir_builder_create_block(lir_builder_t *builder, VALUE *pc)
 {
     unsigned id = jit_list_size(&builder->cur_func->bblist);
@@ -335,13 +340,17 @@ static basicblock_t *lir_builder_cur_bb(lir_builder_t *self)
     return self->cur_bb;
 }
 
-static void lir_builder_add_inst(lir_builder_t *self, lir_t inst)
+static lir_t lir_builder_add_inst(lir_builder_t *self, lir_t inst, size_t size)
 {
+    lir_t newinst = NULL;
     if (LIR_OPT_PEEPHOLE_OPTIMIZATION) {
 	// TODO
     }
+    newinst = (lir_t)memory_pool_alloc(self->mpool, size);
+    memcpy(newinst, inst, size);
+    newinst->id = self->inst_size++;
     basicblock_append(lir_builder_cur_bb(self), inst);
-    self->inst_size += 1;
+    return newinst;
 }
 
 static int lir_builder_is_full(lir_builder_t *self)

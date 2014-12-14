@@ -8,32 +8,31 @@
 
  **********************************************************************/
 
-//#define __int3__ __asm__ __volatile__("int3")
-//#undef GET_GLOBAL_CONSTANT_STATE
-//#define GET_GLOBAL_CONSTANT_STATE() (*jit_runtime.global_constant_state)
-//
-//#define EmitIR(OP, ...) Emit_##OP(rec, ##__VA_ARGS__)
+#undef GET_GLOBAL_CONSTANT_STATE
+#define GET_GLOBAL_CONSTANT_STATE() (*jit_runtime.global_constant_state)
+
 //#define _POP() StackPop(rec)
 //#define _PUSH(REG) StackPush(rec, REG)
 //#define _TOPN(N) regstack_top(&(rec)->regstack, (int)(N))
 //#define _SET(N, REG) regstack_set(&(rec)->regstack, (int)(N), REG)
-//#define IS_Fixnum(V) FIXNUM_P(V)
-//#define IS_Float(V) FLONUM_P(V)
-//#define IS_String(V) (!SPECIAL_CONST_P(V) && (RBASIC_CLASS(V) == rb_cString))
-//#define IS_Array(V) (!SPECIAL_CONST_P(V) && (RBASIC_CLASS(V) == rb_cArray))
-//#define IS_Hash(V) (!SPECIAL_CONST_P(V) && (RBASIC_CLASS(V) == rb_cHash))
-//#define IS_Math(V) (!SPECIAL_CONST_P(V) && (RBASIC_CLASS(V) == rb_cMath))
-//#define IS_Object(V) (!SPECIAL_CONST_P(V) && (RB_TYPE_P(V, T_OBJECT)))
-//#define IS_NonSpecialConst(V) (!SPECIAL_CONST_P(V))
-//#define CURRENT_PC get_current_pc(e, snapshot)
-//
-//#define not_support_op(rec, E, OPNAME)                               \
-//    do {                                                             \
-//	static const char msg[] = "not support bytecode: " OPNAME;   \
-//	trace_recorder_abort(rec, e, TRACE_ERROR_UNSUPPORT_OP, msg); \
-//	return;                                                      \
-//    } while (0)
-//
+#define EmitIR(OP, ...) Emit_##OP(builder, ##__VA_ARGS__)
+#define IS_Fixnum(V) FIXNUM_P(V)
+#define IS_Float(V) FLONUM_P(V)
+#define IS_String(V) (!SPECIAL_CONST_P(V) && (RBASIC_CLASS(V) == rb_cString))
+#define IS_Array(V) (!SPECIAL_CONST_P(V) && (RBASIC_CLASS(V) == rb_cArray))
+#define IS_Hash(V) (!SPECIAL_CONST_P(V) && (RBASIC_CLASS(V) == rb_cHash))
+#define IS_Math(V) (!SPECIAL_CONST_P(V) && (RBASIC_CLASS(V) == rb_cMath))
+#define IS_Object(V) (!SPECIAL_CONST_P(V) && (RB_TYPE_P(V, T_OBJECT)))
+#define IS_NonSpecialConst(V) (!SPECIAL_CONST_P(V))
+#define CURRENT_PC get_current_pc(e, snapshot)
+
+#define not_support_op(rec, E, OPNAME)                               \
+    do {                                                             \
+	static const char msg[] = "not support bytecode: " OPNAME;   \
+	trace_recorder_abort(rec, e, TRACE_ERROR_UNSUPPORT_OP, msg); \
+	return;                                                      \
+    } while (0)
+
 //typedef regstack_t jit_snapshot_t;
 //
 //static VALUE *get_current_pc(jit_event_t *e, jit_snapshot_t *snapshot)
@@ -245,7 +244,8 @@ static void record_checkkeyword(lir_builder_t *builder, jit_event_t *e)
 
 static void record_trace(lir_builder_t *builder, jit_event_t *e)
 {
-    TODO("");
+    rb_event_flag_t flag = (rb_event_flag_t)GET_OPERAND(1);
+    EmitIR(Trace, flag);
 }
 
 static void record_defineclass(lir_builder_t *builder, jit_event_t *e)

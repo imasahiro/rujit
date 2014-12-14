@@ -12,9 +12,9 @@
 #define FMT_int "%d"
 #define FMT_long "%ld"
 #define FMT_uint64_t "%04lld"
-#define FMT_lir_t "%04ld"
-#define FMT_LirPtr "%04ld"
-#define FMT_ID "%04ld"
+#define FMT_lir_t "%04d"
+#define FMT_LirPtr "%04d"
+#define FMT_ID "%04d"
 #define FMT_SPECIAL_VALUE "0x%lx"
 #if DUMP_LIR_DUMP_VALUE_AS_STRING
 #define FMT_VALUE "%s"
@@ -34,6 +34,7 @@
 #define DATA_int(V) (V)
 #define DATA_uint64_t(V) (V)
 #define DATA_long(V) (V)
+#define lir_getid_null(V) ((V) ? lir_getid(V) : -1)
 #define DATA_lir_t(V) (lir_getid_null(V))
 #define DATA_LirPtr(V) (lir_getid(*(V)))
 #if DUMP_LIR_DUMP_VALUE_AS_STRING
@@ -56,7 +57,7 @@ typedef struct lir_t *LirPtr;
 typedef VALUE *VALUEPtr;
 typedef VALUE SPECIAL_VALUE;
 typedef void *voidPtr;
-typedef struct basicblock_t *BasicBlockPtr;
+typedef struct lir_basicblock_t *BasicBlockPtr;
 typedef void *lir_folder_t;
 
 #ifndef FALSE
