@@ -1573,6 +1573,7 @@ jit.$(OBJEXT): {$(VPATH)}jit_args.h
 jit.$(OBJEXT): {$(VPATH)}jit_config.h
 jit.$(OBJEXT): {$(VPATH)}jit_core.h
 jit.$(OBJEXT): {$(VPATH)}jit_dump.h
+jit.$(OBJEXT): {$(VPATH)}jit_optimize.h
 jit.$(OBJEXT): {$(VPATH)}jit_hashmap.h
 jit.$(OBJEXT): {$(VPATH)}jit_internal.h
 jit.$(OBJEXT): {$(VPATH)}jit_profile.h

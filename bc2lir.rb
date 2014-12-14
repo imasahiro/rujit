@@ -45,7 +45,7 @@ class Yarv2Lir
   end
 
   def self.take_snapshot
-    'take_snapshot(builder);'
+    'take_snapshot(builder, e->pc);'
   end
 
   def self.pop

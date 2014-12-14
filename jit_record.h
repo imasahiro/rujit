@@ -11,8 +11,8 @@
 #undef GET_GLOBAL_CONSTANT_STATE
 #define GET_GLOBAL_CONSTANT_STATE() (*jit_runtime.global_constant_state)
 
-#define _POP() StackPop(builder)
-#define _PUSH(REG) StackPush(builder, REG)
+#define _POP() lir_builder_pop(builder)
+#define _PUSH(REG) lir_builder_push(builder, REG)
 #define _TOPN(N) regstack_top(&(rec)->regstack, (int)(N))
 #define _SET(N, REG) regstack_set(&(rec)->regstack, (int)(N), REG)
 #define EmitIR(OP, ...) Emit_##OP(builder, ##__VA_ARGS__)
@@ -37,34 +37,21 @@
 
 typedef void jit_snapshot_t;
 
-static jit_snapshot_t *take_snapshot(lir_builder_t *builder)
+static jit_snapshot_t *take_snapshot(lir_builder_t *builder, VALUE *pc)
 {
-    TODO("");
+    fprintf(stderr, "snapshot %p\n", pc);
     return NULL;
-}
-
-static lir_t StackPop(lir_builder_t *builder)
-{
-    TODO("");
-    return NULL;
-}
-
-static void StackPush(lir_builder_t *builder, lir_t ir)
-{
-    TODO("");
 }
 
 /* util */
 static lir_t emit_envload(lir_builder_t *builder, int lev, int idx)
 {
-    TODO("");
-    return NULL;
+    return EmitIR(EnvLoad, lev, idx);
 }
 
 static lir_t emit_envstore(lir_builder_t *builder, int lev, int idx, lir_t val)
 {
-    TODO("");
-    return NULL;
+    return EmitIR(EnvStore, lev, idx, val);
 }
 
 static lir_t emit_call_method(lir_builder_t *builder, CALL_INFO ci)
@@ -87,47 +74,45 @@ static lir_t emit_set_prop(lir_builder_t *builder, CALL_INFO ci, lir_t recv, lir
 
 static lir_t emit_load_const(lir_builder_t *builder, VALUE val)
 {
-    TODO("");
-    return NULL;
-    //unsigned inst_size;
-    //lir_basicblock_t *entry_bb = lir_builder_cur_bb(builder);
-    //lir_basicblock_t *cur_bb = lir_builder_cur_bb(builder);
-    //lir_t Rval = trace_recorder_get_const(rec, val);
-    //if (Rval) {
-    //    return Rval;
-    //}
-    //rec->cur_bb = BB;
-    //inst_size = basicblock_size(BB);
-    //if (NIL_P(val)) {
-    //    Rval = EmitIR(LoadConstNil);
-    //}
-    //else if (val == Qtrue || val == Qfalse) {
-    //    Rval = EmitIR(LoadConstBoolean, val);
-    //}
-    //else if (FIXNUM_P(val)) {
-    //    Rval = EmitIR(LoadConstFixnum, val);
-    //}
-    //else if (FLONUM_P(val)) {
-    //    Rval = EmitIR(LoadConstFloat, val);
-    //}
-    //else if (!SPECIAL_CONST_P(val)) {
-    //    if (RBASIC_CLASS(val) == rb_cString) {
-    //        Rval = EmitIR(LoadConstString, val);
-    //    }
-    //    else if (RBASIC_CLASS(val) == rb_cRegexp) {
-    //        Rval = EmitIR(LoadConstRegexp, val);
-    //    }
-    //}
+    unsigned inst_size;
+    basicblock_t *entry_bb = lir_builder_entry_bb(builder);
+    basicblock_t *cur_bb = lir_builder_cur_bb(builder);
+    lir_t Rval = lir_builder_get_const(builder, val);
+    if (Rval) {
+	return Rval;
+    }
+    lir_builder_set_bb(builder, entry_bb);
+    inst_size = basicblock_size(entry_bb);
+    if (NIL_P(val)) {
+	Rval = EmitIR(LoadConstNil);
+    }
+    else if (val == Qtrue || val == Qfalse) {
+	Rval = EmitIR(LoadConstBoolean, val);
+    }
+    else if (FIXNUM_P(val)) {
+	Rval = EmitIR(LoadConstFixnum, val);
+    }
+    else if (FLONUM_P(val)) {
+	Rval = EmitIR(LoadConstFloat, val);
+    }
+    else if (!SPECIAL_CONST_P(val)) {
+	if (RBASIC_CLASS(val) == rb_cString) {
+	    Rval = EmitIR(LoadConstString, val);
+	}
+	else if (RBASIC_CLASS(val) == rb_cRegexp) {
+	    Rval = EmitIR(LoadConstRegexp, val);
+	}
+    }
 
-    //if (Rval == NULL) {
-    //    Rval = EmitIR(LoadConstObject, val);
-    //}
-    //trace_recorder_add_const(rec, val, Rval);
-    //if (inst_size > 0 && inst_size != basicblock_size(BB)) {
-    //    basicblock_swap_inst(BB, inst_size - 1, inst_size);
-    //}
-    //rec->cur_bb = prevBB;
-    //return Rval;
+    if (Rval == NULL) {
+	Rval = EmitIR(LoadConstObject, val);
+    }
+    lir_builder_add_const(builder, val, Rval);
+    if (inst_size > 0 && inst_size != basicblock_size(entry_bb)) {
+	basicblock_swap_inst(entry_bb, inst_size - 1, inst_size);
+    }
+    lir_builder_set_bb(builder, cur_bb);
+    return Rval;
 }
 
 //typedef regstack_t jit_snapshot_t;
@@ -296,6 +281,22 @@ static void record_throw(lir_builder_t *builder, jit_event_t *e)
     TODO("");
 }
 
+static void EmitJump(lir_builder_t *builder, VALUE *pc, int create_block)
+{
+    basicblock_t *bb = NULL;
+    if (create_block == 0) {
+	bb = lir_builder_create_block(builder, pc);
+    }
+    else {
+	if ((bb = lir_builder_find_block(builder, pc)) == NULL) {
+	    bb = lir_builder_create_block(builder, pc);
+	}
+    }
+    assert(bb != NULL);
+    EmitIR(Jump, bb);
+    lir_builder_set_bb(builder, bb);
+}
+
 static void record_jump(lir_builder_t *builder, jit_event_t *e)
 {
     TODO("");
@@ -303,7 +304,21 @@ static void record_jump(lir_builder_t *builder, jit_event_t *e)
 
 static void record_branchif(lir_builder_t *builder, jit_event_t *e)
 {
-    TODO("");
+    OFFSET dst = (OFFSET)GET_OPERAND(1);
+    lir_t Rval = _POP();
+    VALUE val = TOPN(0);
+    VALUE *next_pc = e->pc + insn_len(BIN(branchif));
+    VALUE *jump_pc = next_pc + dst;
+    if (RTEST(val)) {
+	take_snapshot(builder, next_pc);
+	EmitIR(GuardTypeNil, next_pc, Rval);
+	EmitJump(builder, jump_pc, 1);
+    }
+    else {
+	take_snapshot(builder, jump_pc);
+	EmitIR(GuardTypeNonNil, jump_pc, Rval);
+	EmitJump(builder, next_pc, 1);
+    }
 }
 
 static void record_branchunless(lir_builder_t *builder, jit_event_t *e)

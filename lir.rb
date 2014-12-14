@@ -16,9 +16,9 @@ end
 class OP
   attr_accessor :name, :def, :use, :arg, :variadic
   attr_accessor :trans, :opcode, :side_effect, :terminator
-  attr_accessor :frame
+  attr_accessor :frame, :type
   def initialize(name, has_def, has_use, trans, side_effect,
-                 terminator, frame, arg, opcode)
+                 terminator, frame, arg, type, opcode)
     @name = name
     @def = has_def == ":def"
     @use = has_use == ":use"
@@ -29,6 +29,7 @@ class OP
     @side_effect = side_effect
     @terminator = terminator
     @frame = frame
+    @type = type
     parse_arg(arg)
   end
 
@@ -54,8 +55,8 @@ open(ARGV[0]) { |file|
 
   while l = file.gets
     if /^([a-zA-Z0-9_]+)/ =~ l
-      /^([a-zA-Z0-9_]+) *(:def)? *(:use)? *(:trans)? *(:effect)? *(:terminator)? *(:frame)? *\((.*)\)$/ =~ l
-      ir = OP.new($1, $2, $3, $4, $5, $6, $7, $8, i)
+      /^([a-zA-Z0-9_]+) *(:def)? *(:use)? *(:trans)? *(:effect)? *(:terminator)? *(:frame)? *\((.*)\) *:([a-zA-Z]+)$/ =~ l
+      ir = OP.new($1, $2, $3, $4, $5, $6, $7, $8, $9, i)
       irs.push(ir)
       i += 1
     end
@@ -70,6 +71,7 @@ def define_struct(ir)
   puts "#define LIR_IS_TERMINATOR_#{ir.name} #{ir.terminator ? 1 : 0}"
   puts "#define LIR_PUSH_FRAME_#{ir.name} #{ir.frame ? 1 : 0}"
   puts "#define LIR_IS_GUARD_INST_#{ir.name} #{ir.name.start_with?("Guard") ? 1 : 0}"
+  puts "#define LIR_TYPE_#{ir.name} LIR_TYPE_#{ir.type}"
   puts "typedef struct I#{ir.name} {\n"
   puts "  lir_inst_t base;"
   ir.arg.each{|e|
@@ -207,6 +209,7 @@ irs.each{|ir|
   emit_get_next ir
 }
 
+puts "#define LIR_MAX_OPCODE #{irs.length}\n"
 puts "#define LIR_EACH(OP) \\"
 irs.each{|ir|
   puts "  OP(#{ir.name})\\"

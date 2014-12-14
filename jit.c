@@ -100,6 +100,8 @@ typedef struct lir_builder_t {
     memory_pool_t *mpool;
     struct lir_func_t *cur_func;
     struct lir_basicblock_t *cur_bb;
+    jit_list_t shadow_stack;
+    hashmap_t const_pool;
     unsigned inst_size;
 } lir_builder_t;
 
@@ -117,9 +119,90 @@ typedef struct rujit_t {
     lir_builder_t builder;
     memory_pool_t mpool;
     native_func_manager_t manager;
+    unsigned func_id;
 } rujit_t;
 
 static rujit_t *current_jit;
+
+static void jit_runtime_init(struct rb_vm_global_state *global_state_ptr)
+{
+    unsigned long i;
+    memset(&jit_runtime, 0, sizeof(jit_runtime_t));
+
+    jit_runtime.cArray = rb_cArray;
+    jit_runtime.cFixnum = rb_cFixnum;
+    jit_runtime.cFloat = rb_cFloat;
+    jit_runtime.cHash = rb_cHash;
+    jit_runtime.cMath = rb_cMath;
+    jit_runtime.cRegexp = rb_cRegexp;
+    jit_runtime.cTime = rb_cTime;
+    jit_runtime.cString = rb_cString;
+    jit_runtime.cSymbol = rb_cSymbol;
+    jit_runtime.cProc = rb_cProc;
+
+    jit_runtime.cTrueClass = rb_cTrueClass;
+    jit_runtime.cFalseClass = rb_cTrueClass;
+    jit_runtime.cNilClass = rb_cNilClass;
+
+    jit_runtime._rb_check_array_type = rb_check_array_type;
+    jit_runtime._rb_big_plus = rb_big_plus;
+    jit_runtime._rb_big_minus = rb_big_minus;
+    jit_runtime._rb_big_mul = rb_big_mul;
+    jit_runtime._rb_int2big = rb_int2big;
+    jit_runtime._rb_str_length = rb_str_length;
+    jit_runtime._rb_str_plus = rb_str_plus;
+    jit_runtime._rb_str_append = rb_str_append;
+    jit_runtime._rb_str_resurrect = rb_str_resurrect;
+    jit_runtime._rb_range_new = rb_range_new;
+    jit_runtime._rb_hash_new = rb_hash_new;
+    jit_runtime._rb_hash_aref = rb_hash_aref;
+    jit_runtime._rb_hash_aset = rb_hash_aset;
+    jit_runtime._rb_reg_match = rb_reg_match;
+    jit_runtime._rb_reg_new_ary = rb_reg_new_ary;
+    jit_runtime._rb_ary_new = rb_ary_new;
+    jit_runtime._rb_ary_plus = rb_ary_plus;
+    jit_runtime._rb_ary_push = rb_ary_push;
+    jit_runtime._rb_ary_new_from_values = rb_ary_new_from_values;
+    jit_runtime._rb_obj_alloc = rb_obj_alloc;
+    jit_runtime._rb_obj_as_string = rb_obj_as_string;
+
+    // internal APIs
+    jit_runtime._rb_float_new_in_heap = rb_float_new_in_heap;
+    jit_runtime._ruby_float_mod = ruby_float_mod;
+    jit_runtime._rb_ary_entry = rb_ary_entry;
+    jit_runtime._rb_ary_store = rb_ary_store;
+    jit_runtime._rb_ary_resurrect = rb_ary_resurrect;
+    jit_runtime._rb_exc_raise = rb_exc_raise;
+#if HAVE_RB_GC_GUARDED_PTR_VAL
+    jit_runtime._rb_gc_guarded_ptr_val = rb_gc_guarded_ptr_val;
+#endif
+#if SIZEOF_INT < SIZEOF_VALUE
+    jit_runtime._rb_out_of_int = rb_out_of_int;
+#endif
+    jit_runtime._rb_gvar_get = rb_gvar_get;
+    jit_runtime._rb_gvar_set = rb_gvar_set;
+    jit_runtime._rb_ivar_set = rb_ivar_set;
+
+    jit_runtime._ruby_current_vm = ruby_current_vm;
+    jit_runtime._make_no_method_exception = make_no_method_exception;
+#if USE_RGENGC
+    jit_runtime._rb_gc_writebarrier_incremental = rb_gc_writebarrier_incremental;
+#endif
+    jit_runtime._rb_gc_writebarrier_generational = rb_gc_writebarrier_generational;
+    jit_runtime._rb_vm_make_proc = rb_vm_make_proc;
+    jit_runtime._check_match = check_match;
+
+    jit_runtime.redefined_flag = jit_vm_redefined_flag;
+
+    jit_runtime.global_method_state = global_state_ptr->_global_method_state;
+    jit_runtime.global_constant_state = global_state_ptr->_global_constant_state;
+    jit_runtime.class_serial = global_state_ptr->_class_serial;
+
+    for (i = 0; i < sizeof(jit_runtime_t) / sizeof(VALUE); i++) {
+	assert(((VALUE *)&jit_runtime)[i] != 0
+	       && "some field of jit_runtime is not initialized");
+    }
+}
 
 static void jit_global_default_params_setup(struct rb_vm_global_state *global_state_ptr)
 {
@@ -162,7 +245,7 @@ static size_t jit_memsize(const void *ptr)
 static const rb_data_type_t jit_data_type = {
     "JIT",
     {
-      jit_mark, NULL, jit_memsize,
+     jit_mark, NULL, jit_memsize,
     },
     NULL,
     NULL,
@@ -183,6 +266,7 @@ static rujit_t *jit_new()
 	TODO("rb_cJit");
 	rb_cJit = Qnil;
     }
+    jit->func_id = 0;
     return jit;
 }
 
@@ -295,9 +379,11 @@ static int already_recorded_on_trace(jit_event_t *e)
 {
     rujit_t *jit = current_jit;
     jit_trace_t *trace;
-    if (lir_builder_find_block(&jit->builder, e->pc)) {
-	record_insn(&jit->builder, e);
-	return 1;
+    basicblock_t *bb;
+    if ((bb = lir_builder_find_block(&jit->builder, e->pc))) {
+	if (basicblock_size(bb) != 0) {
+	    return 1;
+	}
     }
     else if ((trace = jit_find_trace(jit, e)) != NULL) {
 	if (trace_is_compiled(trace)) {
@@ -409,9 +495,8 @@ void rujit_push_compile_queue(rb_thread_t *th, rb_control_frame_t *cfp, rb_metho
     assert(0 && "not implemented");
 }
 
-#include "lir.c"
 #include "jit_dump.h"
 #include "jit_record.h"
-// #include "jit_codegen.h"
+#include "jit_codegen.h"
 // #include "jit_optimize.h"
-// #include "jit_args.h"
+#include "jit_args.h"

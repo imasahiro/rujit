@@ -50,7 +50,7 @@
 #define DATA_CALL_INFO(V) (V)
 #define DATA_IC(V) (V)
 #define DATA_ISEQ(V) (V)
-#define DATA_BasicBlockPtr(V) ((V)->base.id)
+#define DATA_BasicBlockPtr(V) (basicblock_id(V))
 #define DATA_rb_event_flag_t(V) (V)
 
 typedef struct lir_t *LirPtr;
@@ -67,5 +67,21 @@ typedef void *lir_folder_t;
 #ifndef TRUE
 #define TRUE 1
 #endif
+
+enum lir_type {
+    LIR_TYPE_void,
+    LIR_TYPE_Object,
+    LIR_TYPE_Boolean,
+    LIR_TYPE_Fixnum,
+    LIR_TYPE_Float,
+    LIR_TYPE_Array,
+    LIR_TYPE_String,
+    LIR_TYPE_Hash,
+    LIR_TYPE_Range,
+    LIR_TYPE_RegExp,
+    LIR_TYPE_Class,
+    LIR_TYPE_Block,
+    LIR_TYPE_ERROR = -1
+};
 
 #endif /* JIT_INTERNAL_H_ */

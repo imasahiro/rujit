@@ -9,19 +9,28 @@
 **********************************************************************/
 
 /* lir_inst {*/
+typedef struct lir_basicblock_t basicblock_t;
+
 typedef struct lir_inst_t {
     unsigned id;
     unsigned short opcode;
     unsigned short flag;
-    struct lir_basicblock_t *parent;
+    basicblock_t *parent;
     jit_list_t *user;
 } lir_inst_t, *lir_t;
+
+static int basicblock_id(basicblock_t *bb);
 
 static lir_t lir_inst_init(lir_t inst, size_t size, unsigned opcode)
 {
     memset(inst, 0, size);
     inst->opcode = opcode;
     return inst;
+}
+
+static int lir_getid(lir_t inst)
+{
+    return inst->id;
 }
 
 static void lir_delete(lir_t inst)
@@ -43,8 +52,9 @@ static void lir_delete(lir_t inst)
 #define ADD_INST_N(BUILDER, INST, SIZE) \
     lir_builder_add_inst(BUILDER, &(INST)->base, sizeof(*INST) + sizeof(lir_t) * (SIZE))
 
+static lir_t lir_builder_add_inst(lir_builder_t *self, lir_t inst, size_t size);
 #include "lir_template.h"
-// #include "lir.c"
+#include "lir.c"
 
 static int lir_is_terminator(lir_t inst)
 {
@@ -90,6 +100,20 @@ static lir_t *lir_inst_get_args(lir_t inst, int idx)
     return NULL;
 }
 
+static enum lir_type lir_get_type(lir_t inst)
+{
+    switch (inst->opcode) {
+#define LIR_GET_TYPE(OPNAME) \
+    case OPCODE_I##OPNAME:   \
+	return LIR_TYPE_##OPNAME;
+	LIR_EACH(LIR_GET_TYPE);
+	default:
+	    assert(0 && "unreachable");
+#undef LIR_GET_TYPE
+    }
+    return LIR_TYPE_ERROR;
+}
+
 static void lir_inst_adduser(memory_pool_t *mpool, lir_t inst, lir_t ir)
 {
     if (inst->user == NULL) {
@@ -125,7 +149,7 @@ static void lir_update_userinfo(memory_pool_t *mpool, lir_t inst)
 }
 
 /* basicblock { */
-typedef struct lir_basicblock_t {
+struct lir_basicblock_t {
     lir_inst_t base;
     VALUE *pc;
     struct local_var_table_t *init_table;
@@ -134,7 +158,7 @@ typedef struct lir_basicblock_t {
     jit_list_t preds;
     jit_list_t succs;
     jit_list_t side_exits; // n -> PC, n+1 -> reg2stack map
-} basicblock_t;
+};
 
 static basicblock_t *basicblock_new(memory_pool_t *mpool, VALUE *pc, int id)
 {
@@ -146,7 +170,12 @@ static basicblock_t *basicblock_new(memory_pool_t *mpool, VALUE *pc, int id)
     jit_list_init(&bb->preds);
     jit_list_init(&bb->succs);
     jit_list_init(&bb->side_exits);
+    bb->base.id = id;
     return bb;
+}
+static int basicblock_id(basicblock_t *bb)
+{
+    return bb->base.id;
 }
 
 static unsigned basicblock_size(basicblock_t *bb)
@@ -270,6 +299,7 @@ static lir_t basicblock_get_next(basicblock_t *bb, lir_t inst)
 
 /* lir_func { */
 typedef struct lir_func_t {
+    unsigned id;
     VALUE *pc;
     basicblock_t *entry_bb;
     struct native_func_t *compiled_code;
@@ -284,6 +314,7 @@ static lir_func_t *lir_func_new(memory_pool_t *mp)
     lir_func_t *func = MEMORY_POOL_ALLOC(lir_func_t, mp);
     jit_list_init(&func->bblist);
     jit_list_init(&func->side_exits);
+    func->id = current_jit->func_id++;
     return func;
 }
 
@@ -305,52 +336,25 @@ static lir_builder_t *lir_builder_init(lir_builder_t *self, memory_pool_t *mpool
     self->cur_bb = NULL;
     self->mpool = mpool;
     self->inst_size = 0;
+    jit_list_init(&self->shadow_stack);
     return self;
-}
-
-static int lir_getid(lir_t inst)
-{
-    return inst->id;
 }
 
 static basicblock_t *lir_builder_create_block(lir_builder_t *builder, VALUE *pc)
 {
     unsigned id = jit_list_size(&builder->cur_func->bblist);
-    return basicblock_new(builder->mpool, pc, id);
+    basicblock_t *bb = basicblock_new(builder->mpool, pc, id);
+    JIT_LIST_ADD(&builder->cur_func->bblist, bb);
+    return bb;
 }
 
-static void lir_builder_reset(lir_builder_t *self, lir_func_t **func, VALUE *pc)
-{
-    assert(self->mode == LIR_BUILDER_STATE_NOP);
-    assert(*func == NULL);
-    *func = lir_func_new(self->mpool);
-    self->cur_func = *func;
-    self->cur_bb = lir_builder_create_block(self, pc);
-}
-
+static void dump_lir_func(lir_func_t *func);
 static void lir_builder_compile(rujit_t *jit, lir_builder_t *self)
 {
     self->mode = LIR_BUILDER_STATE_COMPILING;
+    dump_lir_func(self->cur_func);
     TODO("");
     self->mode = LIR_BUILDER_STATE_NOP;
-}
-
-static basicblock_t *lir_builder_cur_bb(lir_builder_t *self)
-{
-    return self->cur_bb;
-}
-
-static lir_t lir_builder_add_inst(lir_builder_t *self, lir_t inst, size_t size)
-{
-    lir_t newinst = NULL;
-    if (LIR_OPT_PEEPHOLE_OPTIMIZATION) {
-	// TODO
-    }
-    newinst = (lir_t)memory_pool_alloc(self->mpool, size);
-    memcpy(newinst, inst, size);
-    newinst->id = self->inst_size++;
-    basicblock_append(lir_builder_cur_bb(self), inst);
-    return newinst;
 }
 
 static int lir_builder_is_full(lir_builder_t *self)
@@ -358,15 +362,25 @@ static int lir_builder_is_full(lir_builder_t *self)
     return self->inst_size >= LIR_MAX_TRACE_LENGTH;
 }
 
+static void lir_builder_abort(lir_builder_t *self)
+{
+    self->mode = LIR_BUILDER_STATE_NOP;
+    TODO("");
+}
+
 static void lir_builder_set_bb(lir_builder_t *self, basicblock_t *bb)
 {
     self->cur_bb = bb;
 }
 
-static void lir_builder_abort(lir_builder_t *self)
+static basicblock_t *lir_builder_cur_bb(lir_builder_t *self)
 {
-    self->mode = LIR_BUILDER_STATE_NOP;
-    TODO("");
+    return self->cur_bb;
+}
+
+static basicblock_t *lir_builder_entry_bb(lir_builder_t *self)
+{
+    return JIT_LIST_GET(basicblock_t *, &self->cur_func->bblist, 0);
 }
 
 static basicblock_t *lir_builder_find_block(lir_builder_t *self, VALUE *pc)
@@ -382,9 +396,72 @@ static basicblock_t *lir_builder_find_block(lir_builder_t *self, VALUE *pc)
     return NULL;
 }
 
+static lir_t Emit_Jump(lir_builder_t *builder, basicblock_t *bb);
+
+static void lir_builder_reset(lir_builder_t *self, lir_func_t **func, VALUE *pc)
+{
+    basicblock_t *entry_bb, *cur_bb;
+    assert(self->mode == LIR_BUILDER_STATE_NOP);
+    assert(*func == NULL);
+    *func = lir_func_new(self->mpool);
+    self->cur_func = *func;
+    self->shadow_stack.size = 0;
+    hashmap_dispose(&self->const_pool, NULL);
+    hashmap_init(&self->const_pool, 4);
+
+    entry_bb = lir_builder_create_block(self, pc);
+    cur_bb = lir_builder_create_block(self, pc);
+    lir_builder_set_bb(self, entry_bb);
+    Emit_Jump(self, cur_bb);
+    lir_builder_set_bb(self, cur_bb);
+}
+
+static lir_t lir_builder_pop(lir_builder_t *self)
+{
+    unsigned size = jit_list_size(&self->shadow_stack);
+    lir_t val;
+    assert(size > 0);
+    return (lir_t)jit_list_remove_idx(&self->shadow_stack, size - 1);
+}
+
+static lir_t lir_builder_add_inst(lir_builder_t *self, lir_t inst, size_t size)
+{
+    lir_t newinst = NULL;
+    if (LIR_OPT_PEEPHOLE_OPTIMIZATION) {
+	// TODO
+    }
+    newinst = (lir_t)memory_pool_alloc(self->mpool, size);
+    memcpy(newinst, inst, size);
+    newinst->id = self->inst_size++;
+    basicblock_append(lir_builder_cur_bb(self), newinst);
+    return newinst;
+}
+
+static void lir_builder_push(lir_builder_t *self, lir_t val)
+{
+    JIT_LIST_ADD(&self->shadow_stack, val);
+}
+
+static lir_t lir_builder_get_const(lir_builder_t *builder, VALUE val)
+{
+    return (lir_t)hashmap_get(&builder->const_pool, (hashmap_data_t)val);
+}
+
+static lir_t lir_builder_add_const(lir_builder_t *builder, VALUE val, lir_t Rval)
+{
+    lir_t Rold = lir_builder_get_const(builder, val);
+    if (Rold) {
+	return Rold;
+    }
+    hashmap_set(&builder->const_pool, (hashmap_data_t)val, (hashmap_data_t)Rval);
+    return Rval;
+}
+
 static void lir_builder_dispose(lir_builder_t *self)
 {
     assert(self->mode == LIR_BUILDER_STATE_NOP);
+    jit_list_delete(&self->shadow_stack);
+    hashmap_dispose(&self->const_pool, NULL);
     TODO("");
 }
 

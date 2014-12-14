@@ -1,184 +1,184 @@
 # guard operator
-GuardTypeSymbol          :use (Exit:VALUEPtr, R:lir_t)
-GuardTypeFixnum          :use (Exit:VALUEPtr, R:lir_t)
-GuardTypeBignum          :use (Exit:VALUEPtr, R:lir_t)
-GuardTypeFloat           :use (Exit:VALUEPtr, R:lir_t)
-GuardTypeSpecialConst    :use (Exit:VALUEPtr, R:lir_t)
-GuardTypeNonSpecialConst :use (Exit:VALUEPtr, R:lir_t)
-GuardTypeArray           :use (Exit:VALUEPtr, R:lir_t)
-GuardTypeString          :use (Exit:VALUEPtr, R:lir_t)
-GuardTypeHash            :use (Exit:VALUEPtr, R:lir_t)
-GuardTypeRegexp          :use (Exit:VALUEPtr, R:lir_t)
-GuardTypeTime            :use (Exit:VALUEPtr, R:lir_t)
-GuardTypeMath            :use (Exit:VALUEPtr, R:lir_t)
-GuardTypeObject          :use (Exit:VALUEPtr, R:lir_t)
-GuardTypeNil             :use (Exit:VALUEPtr, R:lir_t)
-GuardTypeNonNil          :use (Exit:VALUEPtr, R:lir_t)
-GuardBlockEqual          :use (Exit:VALUEPtr, R:lir_t, iseq:ISEQ)
-GuardProperty            :use (Exit:VALUEPtr, R:lir_t, is_attr:int, id:long, index:uint64_t, serial:uint64_t)
-GuardArraySize           :use (Exit:VALUEPtr, R:lir_t, size:long)
-GuardClassMethod         :use (Exit:VALUEPtr, R:lir_t, ci:CALL_INFO)
-GuardMethodCache         :use (Exit:VALUEPtr, R:lir_t, ci:CALL_INFO)
-GuardMethodRedefine           (Exit:VALUEPtr, klass_flag:int, bop:int)
+GuardTypeSymbol          :use (Exit:VALUEPtr, R:lir_t) :void
+GuardTypeFixnum          :use (Exit:VALUEPtr, R:lir_t) :void
+GuardTypeBignum          :use (Exit:VALUEPtr, R:lir_t) :void
+GuardTypeFloat           :use (Exit:VALUEPtr, R:lir_t) :void
+GuardTypeSpecialConst    :use (Exit:VALUEPtr, R:lir_t) :void
+GuardTypeNonSpecialConst :use (Exit:VALUEPtr, R:lir_t) :void
+GuardTypeArray           :use (Exit:VALUEPtr, R:lir_t) :void
+GuardTypeString          :use (Exit:VALUEPtr, R:lir_t) :void
+GuardTypeHash            :use (Exit:VALUEPtr, R:lir_t) :void
+GuardTypeRegexp          :use (Exit:VALUEPtr, R:lir_t) :void
+GuardTypeTime            :use (Exit:VALUEPtr, R:lir_t) :void
+GuardTypeMath            :use (Exit:VALUEPtr, R:lir_t) :void
+GuardTypeObject          :use (Exit:VALUEPtr, R:lir_t) :void
+GuardTypeNil             :use (Exit:VALUEPtr, R:lir_t) :void
+GuardTypeNonNil          :use (Exit:VALUEPtr, R:lir_t) :void
+GuardBlockEqual          :use (Exit:VALUEPtr, R:lir_t, iseq:ISEQ) :void
+GuardProperty            :use (Exit:VALUEPtr, R:lir_t, is_attr:int, id:long, index:uint64_t, serial:uint64_t) :void
+GuardArraySize           :use (Exit:VALUEPtr, R:lir_t, size:long) :void
+GuardClassMethod         :use (Exit:VALUEPtr, R:lir_t, ci:CALL_INFO) :void
+GuardMethodCache         :use (Exit:VALUEPtr, R:lir_t, ci:CALL_INFO) :void
+GuardMethodRedefine           (Exit:VALUEPtr, klass_flag:int, bop:int) :void
 
 # fixnum operator
-FixnumAdd         :def :use (LHS:lir_t, RHS:lir_t)
-FixnumSub         :def :use (LHS:lir_t, RHS:lir_t)
-FixnumMul         :def :use (LHS:lir_t, RHS:lir_t)
-FixnumDiv         :def :use (LHS:lir_t, RHS:lir_t)
-FixnumMod         :def :use (LHS:lir_t, RHS:lir_t)
-FixnumAddOverflow :def :use :trans (LHS:lir_t, RHS:lir_t)
-FixnumSubOverflow :def :use :trans (LHS:lir_t, RHS:lir_t)
-FixnumMulOverflow :def :use :trans (LHS:lir_t, RHS:lir_t)
-FixnumDivOverflow :def :use :trans (LHS:lir_t, RHS:lir_t)
-FixnumModOverflow :def :use :trans (LHS:lir_t, RHS:lir_t)
-FixnumPowOverflow :def :use :trans (LHS:lir_t, RHS:lir_t)
-FixnumEq          :def :use :trans (LHS:lir_t, RHS:lir_t)
-FixnumNe          :def :use :trans (LHS:lir_t, RHS:lir_t)
-FixnumGt          :def :use :trans (LHS:lir_t, RHS:lir_t)
-FixnumGe          :def :use :trans (LHS:lir_t, RHS:lir_t)
-FixnumLt          :def :use :trans (LHS:lir_t, RHS:lir_t)
-FixnumLe          :def :use :trans (LHS:lir_t, RHS:lir_t)
-FixnumAnd         :def :use :trans (LHS:lir_t, RHS:lir_t)
-FixnumOr          :def :use :trans (LHS:lir_t, RHS:lir_t)
-FixnumXor         :def :use :trans (LHS:lir_t, RHS:lir_t)
-FixnumLshift      :def :use :trans (LHS:lir_t, RHS:lir_t)
-FixnumRshift      :def :use :trans (LHS:lir_t, RHS:lir_t)
-FixnumComplement  :def :use :trans (Recv:lir_t)
-FixnumNeg         :def :use :trans (Recv:lir_t)
+FixnumAdd         :def :use (LHS:lir_t, RHS:lir_t) :Fixnum
+FixnumSub         :def :use (LHS:lir_t, RHS:lir_t) :Fixnum
+FixnumMul         :def :use (LHS:lir_t, RHS:lir_t) :Fixnum
+FixnumDiv         :def :use (LHS:lir_t, RHS:lir_t) :Fixnum
+FixnumMod         :def :use (LHS:lir_t, RHS:lir_t) :Fixnum
+FixnumAddOverflow :def :use :trans (LHS:lir_t, RHS:lir_t) :Object
+FixnumSubOverflow :def :use :trans (LHS:lir_t, RHS:lir_t) :Object
+FixnumMulOverflow :def :use :trans (LHS:lir_t, RHS:lir_t) :Object
+FixnumDivOverflow :def :use :trans (LHS:lir_t, RHS:lir_t) :Object
+FixnumModOverflow :def :use :trans (LHS:lir_t, RHS:lir_t) :Object
+FixnumPowOverflow :def :use :trans (LHS:lir_t, RHS:lir_t) :Object
+FixnumEq          :def :use :trans (LHS:lir_t, RHS:lir_t) :Boolean
+FixnumNe          :def :use :trans (LHS:lir_t, RHS:lir_t) :Boolean
+FixnumGt          :def :use :trans (LHS:lir_t, RHS:lir_t) :Boolean
+FixnumGe          :def :use :trans (LHS:lir_t, RHS:lir_t) :Boolean
+FixnumLt          :def :use :trans (LHS:lir_t, RHS:lir_t) :Boolean
+FixnumLe          :def :use :trans (LHS:lir_t, RHS:lir_t) :Boolean
+FixnumAnd         :def :use :trans (LHS:lir_t, RHS:lir_t) :Fixnum
+FixnumOr          :def :use :trans (LHS:lir_t, RHS:lir_t) :Fixnum
+FixnumXor         :def :use :trans (LHS:lir_t, RHS:lir_t) :Fixnum
+FixnumLshift      :def :use :trans (LHS:lir_t, RHS:lir_t) :Fixnum
+FixnumRshift      :def :use :trans (LHS:lir_t, RHS:lir_t) :Fixnum
+FixnumComplement  :def :use :trans (Recv:lir_t) :Fixnum
+FixnumNeg         :def :use :trans (Recv:lir_t) :Fixnum
 
 # float operator
-FloatAdd :def :use :trans (LHS:lir_t, RHS:lir_t)
-FloatSub :def :use :trans (LHS:lir_t, RHS:lir_t)
-FloatMul :def :use :trans (LHS:lir_t, RHS:lir_t)
-FloatDiv :def :use :trans (LHS:lir_t, RHS:lir_t)
-FloatMod :def :use :trans (LHS:lir_t, RHS:lir_t)
-FloatPow :def :use :trans (LHS:lir_t, RHS:lir_t)
-FloatEq  :def :use :trans (LHS:lir_t, RHS:lir_t)
-FloatNe  :def :use :trans (LHS:lir_t, RHS:lir_t)
-FloatGt  :def :use :trans (LHS:lir_t, RHS:lir_t)
-FloatGe  :def :use :trans (LHS:lir_t, RHS:lir_t)
-FloatLt  :def :use :trans (LHS:lir_t, RHS:lir_t)
-FloatLe  :def :use :trans (LHS:lir_t, RHS:lir_t)
-FloatNeg :def :use :trans (Recv:lir_t)
+FloatAdd :def :use :trans (LHS:lir_t, RHS:lir_t) :Float
+FloatSub :def :use :trans (LHS:lir_t, RHS:lir_t) :Float
+FloatMul :def :use :trans (LHS:lir_t, RHS:lir_t) :Float
+FloatDiv :def :use :trans (LHS:lir_t, RHS:lir_t) :Float
+FloatMod :def :use :trans (LHS:lir_t, RHS:lir_t) :Float
+FloatPow :def :use :trans (LHS:lir_t, RHS:lir_t) :Float
+FloatEq  :def :use :trans (LHS:lir_t, RHS:lir_t) :Boolean
+FloatNe  :def :use :trans (LHS:lir_t, RHS:lir_t) :Boolean
+FloatGt  :def :use :trans (LHS:lir_t, RHS:lir_t) :Boolean
+FloatGe  :def :use :trans (LHS:lir_t, RHS:lir_t) :Boolean
+FloatLt  :def :use :trans (LHS:lir_t, RHS:lir_t) :Boolean
+FloatLe  :def :use :trans (LHS:lir_t, RHS:lir_t) :Boolean
+FloatNeg :def :use :trans (Recv:lir_t) :Float
 
 # object operator
-ObjectNot :def :use (Recv:lir_t)
-ObjectClass :def :use (Recv:lir_t)
-## ObjectEq  :def :use (LHS:lir_t, RHS:lir_t)
-## ObjectNe  :def :use (LHS:lir_t, RHS:lir_t)
+ObjectNot :def :use (Recv:lir_t) :Object
+ObjectClass :def :use (Recv:lir_t) :Class
+## ObjectEq  :def :use (LHS:lir_t, RHS:lir_t) :Boolean
+## ObjectNe  :def :use (LHS:lir_t, RHS:lir_t) :Boolean
 
 # Converter
-ObjectToString :def :use :trans (Val:lir_t)
-FixnumToFloat  :def :use :trans (Val:lir_t)
-FixnumToString :def :use :trans (Val:lir_t)
-FloatToFixnum  :def :use :trans (Val:lir_t)
-FloatToString  :def :use :trans (Val:lir_t)
-StringToFixnum :def :use :trans (Val:lir_t)
-StringToFloat  :def :use :trans (Val:lir_t)
+ObjectToString :def :use :trans (Val:lir_t) :String
+FixnumToFloat  :def :use :trans (Val:lir_t) :Float
+FixnumToString :def :use :trans (Val:lir_t) :String
+FloatToFixnum  :def :use :trans (Val:lir_t) :Fixnum
+FloatToString  :def :use :trans (Val:lir_t) :String
+StringToFixnum :def :use :trans (Val:lir_t) :Fixnum
+StringToFloat  :def :use :trans (Val:lir_t) :Float
 
 # Math API
-MathSin   :def :use :trans (self:lir_t, arg:lir_t)
-MathCos   :def :use :trans (self:lir_t, arg:lir_t)
-MathTan   :def :use :trans (self:lir_t, arg:lir_t)
-MathExp   :def :use :trans (self:lir_t, arg:lir_t)
-MathSqrt  :def :use :trans (self:lir_t, arg:lir_t)
-MathLog10 :def :use :trans (self:lir_t, arg:lir_t)
-MathLog2  :def :use :trans (self:lir_t, arg:lir_t)
+MathSin   :def :use :trans (self:lir_t, arg:lir_t) :Float
+MathCos   :def :use :trans (self:lir_t, arg:lir_t) :Float
+MathTan   :def :use :trans (self:lir_t, arg:lir_t) :Float
+MathExp   :def :use :trans (self:lir_t, arg:lir_t) :Float
+MathSqrt  :def :use :trans (self:lir_t, arg:lir_t) :Float
+MathLog10 :def :use :trans (self:lir_t, arg:lir_t) :Float
+MathLog2  :def :use :trans (self:lir_t, arg:lir_t) :Float
 
 # string operator
-StringLength :def :use :trans (Recv:lir_t)
-StringEmptyP :def :use :trans (Recv:lir_t)
-StringConcat :def :use :trans :effect (LHS:lir_t, RHS:lir_t)
-StringAdd    :def :use :trans :effect (Recv:lir_t, Obj:lir_t)
+StringLength :def :use :trans (Recv:lir_t) :Fixnum
+StringEmptyP :def :use :trans (Recv:lir_t) :Boolean
+StringConcat :def :use :trans :effect (LHS:lir_t, RHS:lir_t) :Object
+StringAdd    :def :use :trans :effect (Recv:lir_t, Obj:lir_t) :Object
 
 # array operator
-ArrayLength :def :use :trans (Recv:lir_t)
-ArrayEmptyP :def :use :trans (Recv:lir_t)
-ArrayDup    :def :use        (orig:lir_t)
-ArrayConcat :def :use :trans (LHS:lir_t, RHS:lir_t)
-ArrayAdd    :def :use :trans (Recv:lir_t, Val:lir_t)
-ArrayGet    :def :use :trans (Recv:lir_t, Index:lir_t)
-ArraySet    :def :use :trans :effect (Recv:lir_t, Index:lir_t, Val:lir_t)
+ArrayLength :def :use :trans (Recv:lir_t) :Fixnum
+ArrayEmptyP :def :use :trans (Recv:lir_t) :Boolean
+ArrayDup    :def :use        (orig:lir_t) :Array
+ArrayConcat :def :use :trans (LHS:lir_t, RHS:lir_t) :Array
+ArrayAdd    :def :use :trans (Recv:lir_t, Val:lir_t) :Object
+ArrayGet    :def :use :trans (Recv:lir_t, Index:lir_t) :Object
+ArraySet    :def :use :trans :effect (Recv:lir_t, Index:lir_t, Val:lir_t) :Object
 
 # hash operator
-HashLength :def :use :trans (Recv:lir_t)
-HashEmptyP :def :use :trans (Recv:lir_t)
-HashGet    :def :use :trans (Recv:lir_t, Index:lir_t)
-HashSet    :def :use :trans :effect (Recv:lir_t, Index:lir_t, Val:lir_t)
+HashLength :def :use :trans (Recv:lir_t) :Fixnum
+HashEmptyP :def :use :trans (Recv:lir_t) :Boolean
+HashGet    :def :use :trans (Recv:lir_t, Index:lir_t) :Object
+HashSet    :def :use :trans :effect (Recv:lir_t, Index:lir_t, Val:lir_t) :Object
 
 # regexp operator
-RegExpMatch :def :use :trans (Str:lir_t, Re:lir_t)
+RegExpMatch :def :use :trans (Str:lir_t, Re:lir_t) :Object
 
 # alloc instruction
-AllocArray  :def      (argc:int, argv:lir_t[])
-AllocHash   :def      (argc:int, argv:lir_t[])
-AllocString :def :use (OrigStr:lir_t)
-AllocRange  :def :use (Low:lir_t, High:lir_t, Flag:int)
-AllocRegexFromArray :def :use (Ary:lir_t, opt:int)
-AllocBlock  :def :use (block:lir_t)
-AllocObject :def :effect (PC:VALUEPtr, ci:CALL_INFO, Klass:lir_t)
+AllocArray  :def      (argc:int, argv:lir_t[]) :Array
+AllocHash   :def      (argc:int, argv:lir_t[]) :Hash
+AllocString :def :use (OrigStr:lir_t) :String
+AllocRange  :def :use (Low:lir_t, High:lir_t, Flag:int) :Range
+AllocRegexFromArray :def :use (Ary:lir_t, opt:int) :RegExp
+AllocBlock  :def :use (block:lir_t) :Block
+AllocObject :def :effect (PC:VALUEPtr, ci:CALL_INFO, Klass:lir_t) :Object
 
 # load/store global variable
-GetGlobal :def :use (Entry:GENTRY)
-SetGlobal :use :effect (Entry:GENTRY, Val:lir_t)
+GetGlobal :def :use (Entry:GENTRY) :Object
+SetGlobal :use :effect (Entry:GENTRY, Val:lir_t) :Object
 
 # load/store instance variable
-GetPropertyName :def :use (Recv:lir_t, Index:long)
-SetPropertyName :def :use :effect (Recv:lir_t, id:long, Index:long, Val:lir_t)
+GetPropertyName :def :use (Recv:lir_t, Index:long) :Object
+SetPropertyName :def :use :effect (Recv:lir_t, id:long, Index:long, Val:lir_t) :Object
 
 # constant object instruction
-LoadConstNil     :def ()
-LoadConstObject  :def (Val:VALUE)
-LoadConstBoolean :def (Val:VALUE)
-LoadConstFixnum  :def (Val:VALUE)
-LoadConstFloat   :def (Val:VALUE)
-LoadConstString  :def (Val:VALUE)
-LoadConstRegexp  :def (Val:VALUE)
-LoadConstSpecialObject :def (Val:SPECIAL_VALUE)
+LoadConstNil     :def () :Object
+LoadConstObject  :def (Val:VALUE) :Object
+LoadConstBoolean :def (Val:VALUE) :Boolean
+LoadConstFixnum  :def (Val:VALUE) :Fixnum
+LoadConstFloat   :def (Val:VALUE) :Float
+LoadConstString  :def (Val:VALUE) :String
+LoadConstRegexp  :def (Val:VALUE) :RegExp
+LoadConstSpecialObject :def (Val:SPECIAL_VALUE) :Object
 
 # load special object instruction
-LoadSelf        :def ()
-LoadSelfAsBlock :def (iseq:ISEQ)
-LoadBlock       :def ()
+LoadSelf        :def () :Object
+LoadSelfAsBlock :def (iseq:ISEQ) :Block
+LoadBlock       :def () :Block
 
 # env load/store instruction
-EnvStore :def :use :effect (Level:int, Index:int, Val:lir_t)
-EnvLoad  :def (Level:int, Index:int)
+EnvStore :def :use :effect (Level:int, Index:int, Val:lir_t) :Object
+EnvLoad  :def (Level:int, Index:int) :Object
 
 # stack instruction
-StackPush   :use :effect (Val:lir_t)
-StackPop    :def :effect ()
+StackPush   :use :effect (Val:lir_t) :Object
+StackPop    :def :effect () :Object
 
 # invoke instruction
-CallMethod :def :use :effect (ci:CALL_INFO, argc:int, argv:lir_t[])
-InvokeBlock  :use :effect :frame (PC:VALUEPtr, ci:CALL_INFO, block:lir_t, argc:int, argv:lir_t[])
-InvokeMethod :use :effect :frame (PC:VALUEPtr, ci:CALL_INFO, block:lir_t, argc:int, argv:lir_t[])
-InvokeNative :def :use :effect (ci:CALL_INFO, fptr:voidPtr, argc:int, argv:lir_t[])
-InvokeConstructor :use :effect :frame (PC:VALUEPtr, ci:CALL_INFO, recv:lir_t, argc:int, argv:lir_t[])
+CallMethod :def :use :effect (ci:CALL_INFO, argc:int, argv:lir_t[]) :Object
+InvokeBlock  :use :effect :frame (PC:VALUEPtr, ci:CALL_INFO, block:lir_t, argc:int, argv:lir_t[]) :Object
+InvokeMethod :use :effect :frame (PC:VALUEPtr, ci:CALL_INFO, block:lir_t, argc:int, argv:lir_t[]) :Object
+InvokeNative :def :use :effect (ci:CALL_INFO, fptr:voidPtr, argc:int, argv:lir_t[]) :Object
+InvokeConstructor :use :effect :frame (PC:VALUEPtr, ci:CALL_INFO, recv:lir_t, argc:int, argv:lir_t[]) :Object
 
 # pattern match instruction
-PatternMatch      :def :use (Pattern:lir_t, Target:lir_t, flag:rb_event_flag_t)
-PatternMatchRange :def :use (Pattern:lir_t, Target:lir_t, flag:rb_event_flag_t)
+PatternMatch      :def :use (Pattern:lir_t, Target:lir_t, flag:rb_event_flag_t) :Object
+PatternMatchRange :def :use (Pattern:lir_t, Target:lir_t, flag:rb_event_flag_t) :Object
 
 # control flow
-Exit             :terminator (Exit:VALUEPtr)
-Jump             :terminator (TargetBB:BasicBlockPtr)
-# JumpIf      :use :terminator (TargetBB:BasicBlockPtr, Cond:lir_t)
-# Throw  :def :use :terminator (Reg:lir_t)
+Exit             :terminator (Exit:VALUEPtr) :void
+Jump             :terminator (TargetBB:BasicBlockPtr) :void
+# JumpIf      :use :terminator (TargetBB:BasicBlockPtr, Cond:lir_t) :void
+# Throw  :def :use :terminator (Reg:lir_t) :void
 
 # control method frame
-# FramePush :use :effect (PC:VALUEPtr, ci:CALL_INFO, invokeblock:int, block:lir_t, argc:int, argv:lir_t[])
-FramePop  :effect ()
+# FramePush :use :effect (PC:VALUEPtr, ci:CALL_INFO, invokeblock:int, block:lir_t, argc:int, argv:lir_t[]) :Object
+FramePop  :effect () :Object
 
 # phi
-Phi :def :use (argc:int, argv:lir_t[])
+Phi :def :use (argc:int, argv:lir_t[]) :Object
 
 # undef
-Undef ()
+Undef () :Object
 
 # trace
 ## FIXME: in current implementation, Trace IR does not have :effect annotation
 ## to simplify JIT's implementation.
-Trace :use (flag:rb_event_flag_t)
+Trace :use (flag:rb_event_flag_t) :void
 
