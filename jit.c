@@ -40,6 +40,10 @@
 
 static VALUE rb_cMath = Qnil;
 static VALUE rb_cJit = Qnil;
+static int disable_jit = 0;
+jit_runtime_t jit_runtime = {};
+
+#include "jit_ruby_api.h"
 
 #define TRACE_ERROR_INFO(OP, TAIL)                                        \
     OP(OK, "ok")                                                          \
@@ -117,8 +121,6 @@ typedef struct rujit_t {
 
 static rujit_t *current_jit;
 
-static int disable_jit = 0;
-
 static void jit_global_default_params_setup(struct rb_vm_global_state *global_state_ptr)
 {
     char *disable_jit_ptr;
@@ -130,13 +132,14 @@ static void jit_global_default_params_setup(struct rb_vm_global_state *global_st
 	}
 	disable_jit = disable_jit_i;
     }
-    //{
-    //    int i;
-    //    for (i = 0; i < BOP_LAST_; i++) {
-    //        jit_vm_redefined_flag[i] = global_state_ptr->_ruby_vm_redefined_flag[i];
-    //    }
-    //}
+    {
+	int i;
+	for (i = 0; i < BOP_LAST_; i++) {
+	    jit_vm_redefined_flag[i] = global_state_ptr->_ruby_vm_redefined_flag[i];
+	}
+    }
 }
+
 #include "jit_core.h"
 
 static void jit_mark(void *ptr)
@@ -223,7 +226,7 @@ void Init_rawjit(struct rb_vm_global_state *global_state_ptr)
     if (!disable_jit) {
 	rb_cMath = rb_singleton_class(rb_mMath);
 	rb_gc_register_mark_object(rb_cMath);
-	// jit_runtime_init(global_state_ptr);
+	jit_runtime_init(global_state_ptr);
 	current_jit = jit_new();
 	Init_jit(); // load jit_prelude
     }

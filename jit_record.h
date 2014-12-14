@@ -11,10 +11,10 @@
 #undef GET_GLOBAL_CONSTANT_STATE
 #define GET_GLOBAL_CONSTANT_STATE() (*jit_runtime.global_constant_state)
 
-//#define _POP() StackPop(rec)
-//#define _PUSH(REG) StackPush(rec, REG)
-//#define _TOPN(N) regstack_top(&(rec)->regstack, (int)(N))
-//#define _SET(N, REG) regstack_set(&(rec)->regstack, (int)(N), REG)
+#define _POP() StackPop(builder)
+#define _PUSH(REG) StackPush(builder, REG)
+#define _TOPN(N) regstack_top(&(rec)->regstack, (int)(N))
+#define _SET(N, REG) regstack_set(&(rec)->regstack, (int)(N), REG)
 #define EmitIR(OP, ...) Emit_##OP(builder, ##__VA_ARGS__)
 #define IS_Fixnum(V) FIXNUM_P(V)
 #define IS_Float(V) FLONUM_P(V)
@@ -24,14 +24,111 @@
 #define IS_Math(V) (!SPECIAL_CONST_P(V) && (RBASIC_CLASS(V) == rb_cMath))
 #define IS_Object(V) (!SPECIAL_CONST_P(V) && (RB_TYPE_P(V, T_OBJECT)))
 #define IS_NonSpecialConst(V) (!SPECIAL_CONST_P(V))
-#define CURRENT_PC get_current_pc(e, snapshot)
+#define CURRENT_PC (e->pc)
 
-#define not_support_op(rec, E, OPNAME)                               \
-    do {                                                             \
-	static const char msg[] = "not support bytecode: " OPNAME;   \
-	trace_recorder_abort(rec, e, TRACE_ERROR_UNSUPPORT_OP, msg); \
-	return;                                                      \
+#define JIT_OP_UNREDEFINED_P(op, klass) (LIKELY((JIT_RUNTIME->redefined_flag[(op)] & (klass)) == 0))
+
+#define not_support_op(builder, E, OPNAME)                               \
+    do {                                                                 \
+	static const char msg[] = "not support bytecode: " OPNAME;       \
+	trace_recorder_abort(builder, e, TRACE_ERROR_UNSUPPORT_OP, msg); \
+	return;                                                          \
     } while (0)
+
+typedef void jit_snapshot_t;
+
+static jit_snapshot_t *take_snapshot(lir_builder_t *builder)
+{
+    TODO("");
+    return NULL;
+}
+
+static lir_t StackPop(lir_builder_t *builder)
+{
+    TODO("");
+    return NULL;
+}
+
+static void StackPush(lir_builder_t *builder, lir_t ir)
+{
+    TODO("");
+}
+
+/* util */
+static lir_t emit_envload(lir_builder_t *builder, int lev, int idx)
+{
+    TODO("");
+    return NULL;
+}
+
+static lir_t emit_envstore(lir_builder_t *builder, int lev, int idx, lir_t val)
+{
+    TODO("");
+    return NULL;
+}
+
+static lir_t emit_call_method(lir_builder_t *builder, CALL_INFO ci)
+{
+    TODO("");
+    return NULL;
+}
+
+static lir_t emit_get_prop(lir_builder_t *builder, CALL_INFO ci, lir_t recv)
+{
+    TODO("");
+    return NULL;
+}
+
+static lir_t emit_set_prop(lir_builder_t *builder, CALL_INFO ci, lir_t recv, lir_t obj)
+{
+    TODO("");
+    return NULL;
+}
+
+static lir_t emit_load_const(lir_builder_t *builder, VALUE val)
+{
+    TODO("");
+    return NULL;
+    //unsigned inst_size;
+    //lir_basicblock_t *entry_bb = lir_builder_cur_bb(builder);
+    //lir_basicblock_t *cur_bb = lir_builder_cur_bb(builder);
+    //lir_t Rval = trace_recorder_get_const(rec, val);
+    //if (Rval) {
+    //    return Rval;
+    //}
+    //rec->cur_bb = BB;
+    //inst_size = basicblock_size(BB);
+    //if (NIL_P(val)) {
+    //    Rval = EmitIR(LoadConstNil);
+    //}
+    //else if (val == Qtrue || val == Qfalse) {
+    //    Rval = EmitIR(LoadConstBoolean, val);
+    //}
+    //else if (FIXNUM_P(val)) {
+    //    Rval = EmitIR(LoadConstFixnum, val);
+    //}
+    //else if (FLONUM_P(val)) {
+    //    Rval = EmitIR(LoadConstFloat, val);
+    //}
+    //else if (!SPECIAL_CONST_P(val)) {
+    //    if (RBASIC_CLASS(val) == rb_cString) {
+    //        Rval = EmitIR(LoadConstString, val);
+    //    }
+    //    else if (RBASIC_CLASS(val) == rb_cRegexp) {
+    //        Rval = EmitIR(LoadConstRegexp, val);
+    //    }
+    //}
+
+    //if (Rval == NULL) {
+    //    Rval = EmitIR(LoadConstObject, val);
+    //}
+    //trace_recorder_add_const(rec, val, Rval);
+    //if (inst_size > 0 && inst_size != basicblock_size(BB)) {
+    //    basicblock_swap_inst(BB, inst_size - 1, inst_size);
+    //}
+    //rec->cur_bb = prevBB;
+    //return Rval;
+}
 
 //typedef regstack_t jit_snapshot_t;
 //
@@ -42,20 +139,7 @@
 //}
 //
 
-static void record_nop(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_getlocal(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_setlocal(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
+#include "bc2lir.c"
 
 static void record_getspecial(lir_builder_t *builder, jit_event_t *e)
 {
@@ -97,52 +181,12 @@ static void record_setconstant(lir_builder_t *builder, jit_event_t *e)
     TODO("");
 }
 
-static void record_getglobal(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_setglobal(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_putnil(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_putself(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_putobject(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
 static void record_putspecialobject(lir_builder_t *builder, jit_event_t *e)
 {
     TODO("");
 }
 
-static void record_putiseq(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_putstring(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
 static void record_concatstrings(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_tostring(lir_builder_t *builder, jit_event_t *e)
 {
     TODO("");
 }
@@ -187,27 +231,7 @@ static void record_newrange(lir_builder_t *builder, jit_event_t *e)
     TODO("");
 }
 
-static void record_pop(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_dup(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
 static void record_dupn(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_swap(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_reput(lir_builder_t *builder, jit_event_t *e)
 {
     TODO("");
 }
@@ -242,28 +266,12 @@ static void record_checkkeyword(lir_builder_t *builder, jit_event_t *e)
     TODO("");
 }
 
-static void record_trace(lir_builder_t *builder, jit_event_t *e)
-{
-    rb_event_flag_t flag = (rb_event_flag_t)GET_OPERAND(1);
-    EmitIR(Trace, flag);
-}
-
 static void record_defineclass(lir_builder_t *builder, jit_event_t *e)
 {
     TODO("");
 }
 
 static void record_send(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_str_freeze(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_send_without_block(lir_builder_t *builder, jit_event_t *e)
 {
     TODO("");
 }
@@ -323,117 +331,12 @@ static void record_opt_case_dispatch(lir_builder_t *builder, jit_event_t *e)
     TODO("");
 }
 
-static void record_opt_plus(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_minus(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_mult(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_div(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_mod(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_eq(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_neq(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_lt(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_le(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_gt(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_ge(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_ltlt(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_aref(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_aset(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_aset_with(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_aref_with(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_length(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_size(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_empty_p(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
 static void record_opt_succ(lir_builder_t *builder, jit_event_t *e)
 {
     TODO("");
 }
 
 static void record_opt_not(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_regexpmatch1(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_opt_regexpmatch2(lir_builder_t *builder, jit_event_t *e)
 {
     TODO("");
 }
@@ -454,36 +357,6 @@ static void record_bitblt(lir_builder_t *builder, jit_event_t *e)
 }
 
 static void record_answer(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_getlocal_OP__WC__0(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_getlocal_OP__WC__1(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_setlocal_OP__WC__0(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_setlocal_OP__WC__1(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_putobject_OP_INT2FIX_O_0_C_(lir_builder_t *builder, jit_event_t *e)
-{
-    TODO("");
-}
-
-static void record_putobject_OP_INT2FIX_O_1_C_(lir_builder_t *builder, jit_event_t *e)
 {
     TODO("");
 }

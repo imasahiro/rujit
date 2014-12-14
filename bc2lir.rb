@@ -16,7 +16,7 @@ end
 
 class Yarv2Lir
   def self.match(op, &block)
-    puts "static void record_#{op}(trace_recorder_t *rec, jit_event_t *e)"
+    puts "static void record_#{op}(lir_builder_t *builder, jit_event_t *e)"
     puts '{'
     $indent_level += 1
     yield
@@ -30,7 +30,7 @@ class Yarv2Lir
 
   def self.emit(opname, *arg)
     if opname == :EnvLoad || opname == :EnvStore
-      s = "Emit#{opname.to_s}(#{["rec", *arg].map(&:to_s).join(', ')})"
+      s = "emit_#{opname.to_s.downcase}(#{["builder", *arg].map(&:to_s).join(', ')})"
     else
       s = "EmitIR(#{[opname, *arg].map(&:to_s).join(', ')})"
     end
@@ -45,7 +45,7 @@ class Yarv2Lir
   end
 
   def self.take_snapshot
-    'take_snapshot(rec);'
+    'take_snapshot(builder);'
   end
 
   def self.pop
@@ -185,22 +185,22 @@ class Yarv2Lir
   end
 
   def self.emit_get_prop(recv)
-    "emit_get_prop(rec, ci, #{recv});"
+    "emit_get_prop(builder, ci, #{recv});"
   end
 
   def self.emit_set_prop(recv, obj)
-    "emit_set_prop(rec, ci, #{recv}, #{obj});"
+    "emit_set_prop(builder, ci, #{recv}, #{obj});"
   end
 
   def self.emit_call_method(*arg)
-    "emit_call_method(#{['rec', 'ci', arg].flatten.map(&:to_s).join(', ')});"
+    "emit_call_method(#{['builder', 'ci', arg].flatten.map(&:to_s).join(', ')});"
   end
 
   def self.emit_load_const(obj)
     if obj.is_a? Fixnum
       obj = "LONG2FIX(#{obj})"
     end
-    "emit_load_const(rec, #{obj});"
+    "emit_load_const(builder, #{obj});"
   end
   def self.emit_search_method(ci)
     print indent
