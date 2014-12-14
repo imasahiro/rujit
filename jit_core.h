@@ -409,7 +409,7 @@ static void lir_builder_reset(lir_builder_t *self, lir_func_t **func, VALUE *pc)
     hashmap_dispose(&self->const_pool, NULL);
     hashmap_init(&self->const_pool, 4);
 
-    entry_bb = lir_builder_create_block(self, pc);
+    entry_bb = lir_builder_create_block(self, NULL);
     cur_bb = lir_builder_create_block(self, pc);
     lir_builder_set_bb(self, entry_bb);
     Emit_Jump(self, cur_bb);
