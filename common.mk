@@ -840,7 +840,7 @@ $(srcdir)/ext/rbconfig/sizeof/sizes.c: $(srcdir)/ext/rbconfig/sizeof/depend \
 
 ## rujit
 jit.$(OBJEXT): {$(VPATH)}jit.c {$(VPATH)}jit.h {$(VPATH)}jit_cgen_cmd.h \
-	{$(VPATH)}insns.def lir.c bc2lir.c jit_prelude.c \
+	{$(VPATH)}insns.def lir.c yarv2lir.c jit_prelude.c \
 	{$(VPATH)}jit_config.h
 
 jit_prelude.c: $(srcdir)/tool/generic_erb.rb $(srcdir)/jit_prelude.rb
@@ -852,9 +852,9 @@ lir.c: $(srcdir)/lir.def $(srcdir)/lir.rb $(srcdir)/lir_template.h
 	$(ECHO) creating $@
 	$(Q) $(BASERUBY) "$(srcdir)/lir.rb" $(srcdir)/lir.def $(srcdir)/lir_template.h > $@
 
-bc2lir.c: {$(VPATH)}lir.def {$(VPATH)}bc2lir.rb
+yarv2lir.c: {$(VPATH)}lir.def {$(VPATH)}yarv2lir.rb
 	$(ECHO) creating $@
-	$(Q) $(BASERUBY) "$(srcdir)/bc2lir.rb" > $@
+	$(Q) $(BASERUBY) "$(srcdir)/yarv2lir.rb" > $@
 
 jit_cgen_cmd.h: {$(VPATH)}ruby_jit.h {$(VPATH)}make_pch.rb \
 	{$(VPATH)}jit.c {$(VPATH)}jit.h \

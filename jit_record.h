@@ -124,7 +124,7 @@ static lir_t emit_load_const(lir_builder_t *builder, VALUE val)
 //}
 //
 
-#include "bc2lir.c"
+#include "yarv2lir.c"
 
 static void record_getspecial(lir_builder_t *builder, jit_event_t *e)
 {
