@@ -46,12 +46,18 @@ static jit_snapshot_t *take_snapshot(lir_builder_t *builder, VALUE *pc)
 /* util */
 static lir_t emit_envload(lir_builder_t *builder, int lev, int idx)
 {
-    return EmitIR(EnvLoad, lev, idx);
+    basicblock_t *bb = lir_builder_cur_bb(builder);
+    lir_t Rval = EmitIR(EnvLoad, lev, idx);
+    lir_builder_set_localvar(builder, bb, lev, idx, Rval);
+    return Rval;
 }
 
 static lir_t emit_envstore(lir_builder_t *builder, int lev, int idx, lir_t val)
 {
-    return EmitIR(EnvStore, lev, idx, val);
+    basicblock_t *bb = lir_builder_cur_bb(builder);
+    lir_t Rval = EmitIR(EnvStore, lev, idx, val);
+    lir_builder_set_localvar(builder, bb, lev, idx, Rval);
+    return Rval;
 }
 
 static lir_t emit_call_method(lir_builder_t *builder, CALL_INFO ci)

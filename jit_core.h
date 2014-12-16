@@ -8,6 +8,9 @@
 
 **********************************************************************/
 
+struct local_var_table_t;
+static void local_var_table_delete(struct local_var_table_t *vt);
+
 /* lir_inst {*/
 typedef struct lir_basicblock_t basicblock_t;
 
@@ -198,11 +201,11 @@ static void basicblock_delete(basicblock_t *bb)
 
     if (bb->init_table) {
 	TODO("");
-	// local_var_table_delete(bb->init_table);
+	local_var_table_delete(bb->init_table);
     }
     if (bb->last_table) {
 	TODO("");
-	// local_var_table_delete(bb->last_table);
+	local_var_table_delete(bb->last_table);
     }
 }
 
@@ -859,6 +862,53 @@ static local_var_table_t *lir_builder_pop_variable_table(lir_builder_t *builder)
     assert(cur_bb->last_table != NULL);
     return vt;
 }
+
+static lir_t lir_builder_get_localvar(lir_builder_t *builder, basicblock_t *bb, int lev, int idx)
+{
+    return local_var_table_get(bb->last_table, idx, lev, 0);
+}
+
+static lir_t lir_builder_get_self(lir_builder_t *builder, basicblock_t *bb)
+{
+    return local_var_table_get_self(bb->last_table, 0);
+}
+
+static lir_t lir_builder_set_self(lir_builder_t *builder, basicblock_t *bb, lir_t val)
+{
+    local_var_table_set_self(bb->last_table, 0, val);
+    return val;
+}
+
+static void lir_builder_set_localvar(lir_builder_t *builder, basicblock_t *bb, int level, int idx, lir_t val)
+{
+    rujit_t *jit = current_jit;
+    local_var_table_set(bb->last_table, idx, level, 0, val);
+    if (level > 0) {
+	local_var_table_t *vt = bb->last_table;
+	rb_control_frame_t *cfp = jit->current_event->cfp;
+	rb_control_frame_t *cfp1 = RUBY_VM_PREVIOUS_CONTROL_FRAME(cfp);
+	unsigned nest_level = 1;
+	while (vt != NULL) {
+	    if (cfp->iseq->parent_iseq == cfp1->iseq) {
+		cfp = cfp1;
+		level--;
+	    }
+	    if (level == 0) {
+		break;
+	    }
+	    vt = vt->next;
+	    nest_level++;
+	    cfp1 = RUBY_VM_PREVIOUS_CONTROL_FRAME(cfp1);
+	}
+	if (vt) {
+	    if (local_var_table_depth(vt) < nest_level) {
+		lir_builder_insert_vtable(builder, nest_level);
+	    }
+	    local_var_table_set(bb->last_table, idx, level, nest_level, val);
+	}
+    }
+}
+
 /* } variable_table */
 
 ///* regstack { */
