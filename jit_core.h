@@ -28,6 +28,7 @@ static lir_t lir_inst_init(lir_t inst, size_t size, unsigned opcode)
     return inst;
 }
 
+#define LIR_ID(VAL) lir_getid((lir_t)(VAL))
 static int lir_getid(lir_t inst)
 {
     return inst->id;
@@ -629,272 +630,237 @@ static void native_func_manager_dispose(native_func_manager_t *self)
 
 /* native_func_manager_t }*/
 
-//
-///* const pool { */
-//#define CONST_POOL_INIT_SIZE 1
-//static const_pool_t *const_pool_init(const_pool_t *self)
-//{
-//    jit_list_init(&self->list);
-//    jit_list_init(&self->inst);
-//    return self;
-//}
-//
-//static int const_pool_contain(const_pool_t *self, const void *ptr)
-//{
-//    return jit_list_indexof(&self->list, (uintptr_t)ptr);
-//}
-//
-//static int const_pool_add(const_pool_t *self, const void *ptr, lir_t val)
-//{
-//    int idx;
-//    if ((idx = const_pool_contain(self, ptr)) != -1) {
-//	return idx;
-//    }
-//    jit_list_add(&self->list, (uintptr_t)ptr);
-//    jit_list_add(&self->inst, (uintptr_t)val);
-//    return self->list.size - 1;
-//}
-//
-//static void const_pool_delete(const_pool_t *self)
-//{
-//    jit_list_delete(&self->list);
-//    jit_list_delete(&self->inst);
-//    if (JIT_DEBUG_VERBOSE >= 10) {
-//	memset(self, 0, sizeof(*self));
-//    }
-//}
-//
-///* } const pool */
-//
-///* variable_table { */
-//struct variable_table {
-//    jit_list_t table;
-//    lir_t self;
-//    lir_t first_inst;
-//    variable_table_t *next;
-//};
-//
-//struct variable_table_iterator {
-//    variable_table_t *vt;
-//    int off;
-//    unsigned idx;
-//    unsigned lev;
-//    unsigned nest_level;
-//    lir_t val;
-//};
-//
-//static variable_table_t *variable_table_init(struct memory_pool *mp, lir_t inst)
-//{
-//    variable_table_t *vt;
-//    vt = (variable_table_t *)memory_pool_alloc(mp, sizeof(*vt));
-//    vt->first_inst = inst;
-//    vt->self = NULL;
-//    vt->next = NULL;
-//    return vt;
-//}
-//
-//static void variable_table_set_self(variable_table_t *vt, unsigned nest_level, lir_t reg)
-//{
-//    while (nest_level-- != 0) {
-//	vt = vt->next;
-//    }
-//    assert(vt != NULL);
-//    vt->self = reg;
-//}
-//
-//static lir_t variable_table_get_self(variable_table_t *vt, unsigned nest_level)
-//{
-//    while (nest_level-- != 0) {
-//	vt = vt->next;
-//    }
-//    assert(vt != NULL);
-//    return vt->self;
-//}
-//
-//static void variable_table_set(variable_table_t *vt, unsigned idx, unsigned lev, unsigned nest_level, lir_t reg)
-//{
-//    unsigned i;
-//    while (nest_level-- != 0) {
-//	vt = vt->next;
-//    }
-//    assert(vt != NULL);
-//    for (i = 0; i < vt->table.size; i += 3) {
-//	if (jit_list_get(&vt->table, i) == idx) {
-//	    if (jit_list_get(&vt->table, i + 1) == lev) {
-//		jit_list_set(&vt->table, i + 2, (uintptr_t)reg);
-//		return;
-//	    }
-//	}
-//    }
-//    jit_list_add(&vt->table, idx);
-//    jit_list_add(&vt->table, lev);
-//    jit_list_add(&vt->table, (uintptr_t)reg);
-//}
-//
-//static lir_t variable_table_get(variable_table_t *vt, unsigned idx, unsigned lev, unsigned nest_level)
-//{
-//    unsigned i;
-//    while (nest_level-- != 0) {
-//	vt = vt->next;
-//    }
-//    assert(vt != NULL);
-//    for (i = 0; i < vt->table.size; i += 3) {
-//	if (jit_list_get(&vt->table, i) == idx) {
-//	    if (jit_list_get(&vt->table, i + 1) == lev) {
-//		return (lir_t)jit_list_get(&vt->table, i + 2);
-//	    }
-//	}
-//    }
-//    return NULL;
-//}
-//
-//static variable_table_t *variable_table_clone_once(struct memory_pool *mp, variable_table_t *vt)
-//{
-//    unsigned i;
-//    variable_table_t *newvt = variable_table_init(mp, vt->first_inst);
-//    newvt->self = vt->self;
-//    for (i = 0; i < vt->table.size; i++) {
-//	uintptr_t val = jit_list_get(&vt->table, i);
-//	jit_list_add(&newvt->table, (uintptr_t)val);
-//    }
-//    return newvt;
-//}
-//
-//static variable_table_t *variable_table_clone(struct memory_pool *mp, variable_table_t *vt)
-//{
-//    variable_table_t *newvt = variable_table_clone_once(mp, vt);
-//    variable_table_t *root = newvt;
-//    vt = vt->next;
-//    while (vt) {
-//	newvt->next = variable_table_clone_once(mp, vt);
-//	vt = vt->next;
-//	newvt = newvt->next;
-//    }
-//    return root;
-//}
-//
-//static void variable_table_delete(variable_table_t *vt)
-//{
-//    while (vt) {
-//	jit_list_delete(&vt->table);
-//	vt = vt->next;
-//    }
-//}
-//
-//static inline long lir_getid(lir_t ir);
-//static void variable_table_dump(variable_table_t *vt)
-//{
-//    while (vt) {
-//	unsigned i;
-//	fprintf(stderr, "[");
-//	if (vt->self) {
-//	    fprintf(stderr, "self=v%ld", lir_getid(vt->self));
-//	}
-//	for (i = 0; i < vt->table.size; i += 3) {
-//	    uintptr_t idx = jit_list_get(&vt->table, i + 0);
-//	    uintptr_t lev = jit_list_get(&vt->table, i + 1);
-//	    uintptr_t reg = jit_list_get(&vt->table, i + 2);
-//	    if ((vt->self && i == 0) || i != 0) {
-//		fprintf(stderr, ",");
-//	    }
-//	    fprintf(stderr, "(%lu, %lu)=v%ld", lev, idx, lir_getid(((lir_t)reg)));
-//	}
-//	fprintf(stderr, "]");
-//	if (vt->next) {
-//	    fprintf(stderr, "->");
-//	}
-//	vt = vt->next;
-//    }
-//    fprintf(stderr, "\n");
-//}
-//
-//static unsigned variable_table_depth(variable_table_t *vt)
-//{
-//    unsigned depth = 0;
-//    while (vt) {
-//	vt = vt->next;
-//	depth++;
-//    }
-//    return depth;
-//}
-//
-//static void variable_table_iterator_init(variable_table_t *vt, struct variable_table_iterator *itr, unsigned nest_level)
-//{
-//    itr->vt = vt;
-//    itr->nest_level = nest_level;
-//    itr->off = -1;
-//    itr->idx = 0;
-//    itr->lev = 0;
-//    itr->val = NULL;
-//}
-//
-//static int variable_table_each(struct variable_table_iterator *itr)
-//{
-//    // 1. self
-//    if (itr->off == -1) {
-//	itr->off = 0;
-//	itr->idx = 0;
-//	itr->lev = 0;
-//	if (itr->vt->self) {
-//	    itr->val = itr->vt->self;
-//	    return 1;
-//	}
-//    }
-//    // 2. env
-//    if (itr->off < (int)itr->vt->table.size) {
-//	itr->idx = (int)jit_list_get(&itr->vt->table, itr->off + 0);
-//	itr->lev = (int)jit_list_get(&itr->vt->table, itr->off + 1);
-//	itr->val = (lir_t)jit_list_get(&itr->vt->table, itr->off + 2);
-//	itr->off += 3;
-//	return 1;
-//    }
-//    return 0;
-//}
-//
-//static void trace_recorder_push_variable_table(trace_recorder_t *rec, lir_t inst)
-//{
-//    struct memory_pool *mp = &rec->mpool;
-//    variable_table_t *vt = lir_builder_cur_bb(rec->builder)->last_table;
-//    lir_builder_cur_bb(rec->builder)->last_table = variable_table_init(mp, inst);
-//    lir_builder_cur_bb(rec->builder)->last_table->next = vt;
-//    assert(lir_builder_cur_bb(rec->builder)->last_table != NULL);
-//}
-//
-//static void trace_recorder_insert_vtable(trace_recorder_t *rec, unsigned level)
-//{
-//    unsigned i;
-//    for (i = 0; i < rec->bblist.size; i++) {
-//	basicblock_t *bb = (basicblock_t *)jit_list_get(&rec->bblist, i);
-//	while (variable_table_depth(bb->init_table) <= level) {
-//	    variable_table_t *tail = bb->init_table;
-//	    while (tail->next != NULL) {
-//		tail = tail->next;
-//	    }
-//	    tail->next = variable_table_init(&rec->mpool, NULL);
-//	}
-//	while (variable_table_depth(bb->last_table) <= level) {
-//	    variable_table_t *tail = bb->last_table;
-//	    while (tail->next != NULL) {
-//		tail = tail->next;
-//	    }
-//	    tail->next = variable_table_init(&rec->mpool, NULL);
-//	}
-//    }
-//}
-//
-//static variable_table_t *trace_recorder_pop_variable_table(trace_recorder_t *rec)
-//{
-//    variable_table_t *vt = lir_builder_cur_bb(rec->builder)->last_table;
-//
-//    if (variable_table_depth(vt) == 1) {
-//	trace_recorder_insert_vtable(rec, 1);
-//	vt = lir_builder_cur_bb(rec->builder)->last_table;
-//    }
-//    lir_builder_cur_bb(rec->builder)->last_table = vt->next;
-//    assert(lir_builder_cur_bb(rec->builder)->last_table != NULL);
-//    return vt;
-//}
-///* } variable_table */
+/* variable_table { */
+typedef struct local_var_table_t {
+    jit_list_t table;
+    lir_t self;
+    lir_t first_inst;
+    struct local_var_table_t *next;
+} local_var_table_t;
+
+struct local_var_table_iterator {
+    local_var_table_t *vt;
+    int off;
+    unsigned idx;
+    unsigned lev;
+    unsigned nest_level;
+    lir_t val;
+};
+
+static local_var_table_t *local_var_table_init(struct memory_pool *mp, lir_t inst)
+{
+    local_var_table_t *vt;
+    vt = (local_var_table_t *)memory_pool_alloc(mp, sizeof(*vt));
+    vt->first_inst = inst;
+    vt->self = NULL;
+    vt->next = NULL;
+    return vt;
+}
+
+static void local_var_table_set_self(local_var_table_t *vt, unsigned nest_level, lir_t reg)
+{
+    while (nest_level-- != 0) {
+	vt = vt->next;
+    }
+    assert(vt != NULL);
+    vt->self = reg;
+}
+
+static lir_t local_var_table_get_self(local_var_table_t *vt, unsigned nest_level)
+{
+    while (nest_level-- != 0) {
+	vt = vt->next;
+    }
+    assert(vt != NULL);
+    return vt->self;
+}
+
+static void local_var_table_set(local_var_table_t *vt, unsigned idx, unsigned lev, unsigned nest_level, lir_t reg)
+{
+    unsigned i;
+    while (nest_level-- != 0) {
+	vt = vt->next;
+    }
+    assert(vt != NULL);
+    for (i = 0; i < vt->table.size; i += 3) {
+	if (jit_list_get(&vt->table, i) == idx) {
+	    if (jit_list_get(&vt->table, i + 1) == lev) {
+		jit_list_set(&vt->table, i + 2, (uintptr_t)reg);
+		return;
+	    }
+	}
+    }
+    jit_list_add(&vt->table, idx);
+    jit_list_add(&vt->table, lev);
+    jit_list_add(&vt->table, (uintptr_t)reg);
+}
+
+static lir_t local_var_table_get(local_var_table_t *vt, unsigned idx, unsigned lev, unsigned nest_level)
+{
+    unsigned i;
+    while (nest_level-- != 0) {
+	vt = vt->next;
+    }
+    assert(vt != NULL);
+    for (i = 0; i < vt->table.size; i += 3) {
+	if (jit_list_get(&vt->table, i) == idx) {
+	    if (jit_list_get(&vt->table, i + 1) == lev) {
+		return JIT_LIST_GET(lir_t, &vt->table, i + 2);
+	    }
+	}
+    }
+    return NULL;
+}
+
+static local_var_table_t *local_var_table_clone_once(struct memory_pool *mp, local_var_table_t *vt)
+{
+    unsigned i;
+    local_var_table_t *newvt = local_var_table_init(mp, vt->first_inst);
+    newvt->self = vt->self;
+    for (i = 0; i < vt->table.size; i++) {
+	uintptr_t val = jit_list_get(&vt->table, i);
+	jit_list_add(&newvt->table, (uintptr_t)val);
+    }
+    return newvt;
+}
+
+static local_var_table_t *local_var_table_clone(struct memory_pool *mp, local_var_table_t *vt)
+{
+    local_var_table_t *newvt = local_var_table_clone_once(mp, vt);
+    local_var_table_t *root = newvt;
+    vt = vt->next;
+    while (vt) {
+	newvt->next = local_var_table_clone_once(mp, vt);
+	vt = vt->next;
+	newvt = newvt->next;
+    }
+    return root;
+}
+
+static void local_var_table_delete(local_var_table_t *vt)
+{
+    while (vt) {
+	jit_list_delete(&vt->table);
+	vt = vt->next;
+    }
+}
+
+static void local_var_table_dump(local_var_table_t *vt)
+{
+    while (vt) {
+	unsigned i;
+	fprintf(stderr, "[");
+	if (vt->self) {
+	    fprintf(stderr, "self=v%d", LIR_ID(vt->self));
+	}
+	for (i = 0; i < vt->table.size; i += 3) {
+	    int idx = JIT_LIST_GET(int, &vt->table, i + 0);
+	    int lev = JIT_LIST_GET(int, &vt->table, i + 1);
+	    lir_t reg = JIT_LIST_GET(lir_t, &vt->table, i + 2);
+	    if ((vt->self && i == 0) || i != 0) {
+		fprintf(stderr, ",");
+	    }
+	    fprintf(stderr, "(%d, %d)=v%d", lev, idx, LIR_ID(reg));
+	}
+	fprintf(stderr, "]");
+	if (vt->next) {
+	    fprintf(stderr, "->");
+	}
+	vt = vt->next;
+    }
+    fprintf(stderr, "\n");
+}
+
+static unsigned local_var_table_depth(local_var_table_t *vt)
+{
+    unsigned depth = 0;
+    while (vt) {
+	vt = vt->next;
+	depth++;
+    }
+    return depth;
+}
+
+static void local_var_table_iterator_init(local_var_table_t *vt, struct local_var_table_iterator *itr, unsigned nest_level)
+{
+    itr->vt = vt;
+    itr->nest_level = nest_level;
+    itr->off = -1;
+    itr->idx = 0;
+    itr->lev = 0;
+    itr->val = NULL;
+}
+
+static int local_var_table_each(struct local_var_table_iterator *itr)
+{
+    // 1. self
+    if (itr->off == -1) {
+	itr->off = 0;
+	itr->idx = 0;
+	itr->lev = 0;
+	if (itr->vt->self) {
+	    itr->val = itr->vt->self;
+	    return 1;
+	}
+    }
+    // 2. env
+    if (itr->off < (int)itr->vt->table.size) {
+	itr->idx = JIT_LIST_GET(int, &itr->vt->table, itr->off + 0);
+	itr->lev = JIT_LIST_GET(int, &itr->vt->table, itr->off + 1);
+	itr->val = JIT_LIST_GET(lir_t, &itr->vt->table, itr->off + 2);
+	itr->off += 3;
+	return 1;
+    }
+    return 0;
+}
+
+static void lir_builder_push_variable_table(lir_builder_t *builder, lir_t inst)
+{
+    basicblock_t *cur_bb = lir_builder_cur_bb(builder);
+    local_var_table_t *vt = cur_bb->last_table;
+    memory_pool_t *mpool = builder->mpool;
+    cur_bb->last_table = local_var_table_init(mpool, inst);
+    cur_bb->last_table->next = vt;
+}
+
+static void lir_builder_insert_vtable(lir_builder_t *builder, unsigned level)
+{
+    unsigned i;
+    lir_func_t *func = builder->cur_func;
+    for (i = 0; i < jit_list_size(&func->bblist); i++) {
+	basicblock_t *bb = JIT_LIST_GET(basicblock_t *, &func->bblist, i);
+	while (local_var_table_depth(bb->init_table) <= level) {
+	    local_var_table_t *tail = bb->init_table;
+	    while (tail->next != NULL) {
+		tail = tail->next;
+	    }
+	    tail->next = local_var_table_init(builder->mpool, NULL);
+	}
+	while (local_var_table_depth(bb->last_table) <= level) {
+	    local_var_table_t *tail = bb->last_table;
+	    while (tail->next != NULL) {
+		tail = tail->next;
+	    }
+	    tail->next = local_var_table_init(builder->mpool, NULL);
+	}
+    }
+}
+
+static local_var_table_t *lir_builder_pop_variable_table(lir_builder_t *builder)
+{
+    basicblock_t *cur_bb = lir_builder_cur_bb(builder);
+    local_var_table_t *vt = cur_bb->last_table;
+
+    if (local_var_table_depth(vt) == 1) {
+	lir_builder_insert_vtable(builder, 1);
+	vt = cur_bb->last_table;
+    }
+    cur_bb->last_table = vt->next;
+    assert(cur_bb->last_table != NULL);
+    return vt;
+}
+/* } variable_table */
+
 ///* regstack { */
 //static regstack_t *regstack_init(regstack_t *stack, VALUE *pc)
 //{
@@ -916,7 +882,7 @@ static void native_func_manager_dispose(native_func_manager_t *self)
 //    return regstack_init(stack, pc);
 //}
 //
-//static void regstack_push(trace_recorder_t *rec, regstack_t *stack, lir_t reg)
+//static void regstack_push(lir_builder_t *builder, regstack_t *stack, lir_t reg)
 //{
 //    assert(reg != NULL);
 //    jit_list_add(&stack->list, (uintptr_t)reg);
@@ -925,16 +891,16 @@ static void native_func_manager_dispose(native_func_manager_t *self)
 //    }
 //}
 //
-//static lir_t regstack_pop(trace_recorder_t *rec, regstack_t *stack, int *popped)
+//static lir_t regstack_pop(lir_builder_t *builder, regstack_t *stack, int *popped)
 //{
 //    lir_t reg;
 //    if (stack->list.size == 0) {
 //	assert(0 && "FIXME stack underflow");
 //    }
-//    reg = (lir_t)jit_list_get(&stack->list, stack->list.size - 1);
+//    reg = JIT_LIST_GET(lir_t, &stack->list, stack->list.size - 1);
 //    stack->list.size--;
 //    if (reg == NULL) {
-//	reg = trace_recorder_insert_stackpop(rec);
+//	reg = lir_builder_insert_stackpop(builder);
 //	*popped = 1;
 //    }
 //    if (DUMP_STACK_MAP) {
@@ -957,7 +923,7 @@ static void native_func_manager_dispose(native_func_manager_t *self)
 //
 //static lir_t regstack_get_direct(regstack_t *stack, int n)
 //{
-//    return (lir_t)jit_list_get(&stack->list, n);
+//    return JIT_LIST_GET(lir_t, &stack->list, n);
 //}
 //
 //static void regstack_set_direct(regstack_t *stack, int n, lir_t val)
@@ -980,7 +946,7 @@ static void native_func_manager_dispose(native_func_manager_t *self)
 //    lir_t reg;
 //    int idx = stack->list.size - n - 1;
 //    assert(0 <= idx && idx < (int)stack->list.size);
-//    reg = (lir_t)jit_list_get(&stack->list, idx);
+//    reg = JIT_LIST_GET(lir_t, &stack->list, idx);
 //    if (reg == NULL) {
 //	assert(0 && "FIXME stack underflow");
 //    }
@@ -1001,7 +967,7 @@ static void native_func_manager_dispose(native_func_manager_t *self)
 //    unsigned i;
 //    fprintf(stderr, "stack=%p size=%d\n", stack, stack->list.size);
 //    for (i = 0; i < stack->list.size; i++) {
-//	lir_t reg = (lir_t)jit_list_get(&stack->list, i);
+//	lir_t reg = JIT_LIST_GET(lir_t, &stack->list, i);
 //	if (reg) {
 //	    fprintf(stderr, "[%u] = %ld\n", i, lir_getid(reg));
 //	}

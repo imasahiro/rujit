@@ -22,7 +22,7 @@ static void update_side_exit_reference_count(lir_t inst)
     VALUE *pc = ((IGuardTypeFixnum *)inst)->Exit;
     int idx = jit_list_indexof(&bb->stack_map, (uintptr_t)pc);
     assert(0 <= idx);
-    stack = (regstack_t *)jit_list_get(&bb->stack_map, idx + 1);
+    stack = JIT_LIST_GET(regstack_t *, &bb->stack_map, idx + 1);
     RC_INC(stack);
 }
 
@@ -35,7 +35,7 @@ static void lir_inst_replace_with(lir_builder_t *builder, lir_inst_t *inst, lir_
     if (inst->user) {
 	for (i = 0; i < inst->user->size; i++) {
 	    j = 0;
-	    user = (lir_t)jit_list_get(inst->user, i);
+	    user = JIT_LIST_GET(lir_t, inst->user, i);
 	    while ((ref = lir_inst_get_args(user, j)) != NULL) {
 		if (ref && *ref == inst) {
 		    *ref = newinst;
@@ -50,12 +50,12 @@ static void lir_inst_replace_with(lir_builder_t *builder, lir_inst_t *inst, lir_
 
     // 2. replace side exit and variable_table
     for (k = 0; k < lir_builder_blocks(rec)->size; k++) {
-	basicblock_t *bb = (basicblock_t *)jit_list_get(&rec->bblist, k);
+	basicblock_t *bb = JIT_LIST_GET(basicblock_t *, &rec->bblist, k);
 	// 2.1. replace side exit
 	for (j = 0; j < GET_STACK_MAP_ENTRY_SIZE(&bb->stack_map); j++) {
 	    regstack_t *stack;
 	    unsigned idx = GET_STACK_MAP_REAL_INDEX(j);
-	    stack = (regstack_t *)jit_list_get(&bb->stack_map, idx + 1);
+	    stack = JIT_LIST_GET(regstack_t *, &bb->stack_map, idx + 1);
 	    for (i = 0; i < stack->list.size; i++) {
 		if (inst == regstack_get_direct(stack, i)) {
 		    regstack_set_direct(stack, i, newinst);
@@ -70,13 +70,13 @@ static void lir_inst_replace_with(lir_builder_t *builder, lir_inst_t *inst, lir_
 	    bb->last_table->self = newinst;
 	}
 	for (j = 0; j < bb->init_table->table.size; j += 3) {
-	    lir_t reg = (lir_t)jit_list_get(&bb->init_table->table, j + 2);
+	    lir_t reg = JIT_LIST_GET(lir_t, &bb->init_table->table, j + 2);
 	    if (reg == inst) {
 		jit_list_set(&bb->init_table->table, j + 2, (uintptr_t)newinst);
 	    }
 	}
 	for (j = 0; j < bb->last_table->table.size; j += 3) {
-	    lir_t reg = (lir_t)jit_list_get(&bb->last_table->table, j + 2);
+	    lir_t reg = JIT_LIST_GET(lir_t, &bb->last_table->table, j + 2);
 	    if (reg == inst) {
 		jit_list_set(&bb->last_table->table, j + 2, (uintptr_t)newinst);
 	    }
@@ -539,7 +539,7 @@ static lir_inst_t *worklist_pop(worklist_t *list)
 {
     lir_inst_t *last;
     assert(list->list.size > 0);
-    last = (lir_t)jit_list_get(&list->list, list->list.size - 1);
+    last = JIT_LIST_GET(lir_t, &list->list, list->list.size - 1);
     list->list.size -= 1;
     return last;
 }
@@ -555,7 +555,7 @@ static void worklist_init(worklist_t *list, jit_list_t *blocks, lir_builder_t *b
     jit_list_init(&list->list);
     list->rec = rec;
     for (j = 0; j < blocks->size; j++) {
-	basicblock_t *block = (basicblock_t *)jit_list_get(blocks, j);
+	basicblock_t *block = JIT_LIST_GET(basicblock_t *, blocks, j);
 	for (i = 0; i < block->insts.size; i++) {
 	    lir_inst_t *inst = basicblock_get(block, i);
 	    assert(inst != NULL);
@@ -570,7 +570,7 @@ static void worklist_init2(worklist_t *list, jit_list_t *blocks, lir_builder_t *
     jit_list_init(&list->list);
     list->rec = rec;
     for (i = 0; i < lir_builder_blocks(rec)->size; i++) {
-	basicblock_t *block = (basicblock_t *)jit_list_get(&rec->bblist, i);
+	basicblock_t *block = JIT_LIST_GET(basicblock_t *, &rec->bblist, i);
 	worklist_push(list, &block->base);
     }
 }
@@ -618,7 +618,7 @@ static int constant_fold(worklist_t *list, lir_inst_t *inst)
     if (inst != newinst) {
 	if (inst->user) {
 	    for (i = 0; i < inst->user->size; i++) {
-		worklist_push(list, (lir_t)jit_list_get(inst->user, i));
+		worklist_push(list, JIT_LIST_GET(lir_t, inst->user, i));
 	    }
 	}
 	lir_inst_replace_with(builder, inst, newinst);
@@ -636,11 +636,11 @@ static int need_by_side_exit(lir_builder_t *builder, lir_inst_t *inst)
 {
     unsigned i, j, k;
     for (k = 0; k < lir_builder_blocks(rec)->size; k++) {
-	basicblock_t *bb = (basicblock_t *)jit_list_get(&rec->bblist, k);
+	basicblock_t *bb = JIT_LIST_GET(basicblock_t *, &rec->bblist, k);
 	for (j = 0; j < GET_STACK_MAP_ENTRY_SIZE(&bb->stack_map); j++) {
 	    regstack_t *stack;
 	    unsigned idx = GET_STACK_MAP_REAL_INDEX(j);
-	    stack = (regstack_t *)jit_list_get(&bb->stack_map, idx + 1);
+	    stack = JIT_LIST_GET(regstack_t *, &bb->stack_map, idx + 1);
 	    for (i = 0; i < stack->list.size; i++) {
 		if (inst == regstack_get_direct(stack, i)) {
 		    return 1;
@@ -689,11 +689,11 @@ static void remove_from_side_exit(lir_builder_t *builder, lir_inst_t *inst)
 {
     unsigned j, k;
     for (k = 0; k < lir_builder_blocks(rec)->size; k++) {
-	basicblock_t *bb = (basicblock_t *)jit_list_get(&rec->bblist, k);
+	basicblock_t *bb = JIT_LIST_GET(basicblock_t *, &rec->bblist, k);
 	for (j = 0; j < GET_STACK_MAP_ENTRY_SIZE(&bb->stack_map); j++) {
 	    regstack_t *stack;
 	    unsigned idx = GET_STACK_MAP_REAL_INDEX(j);
-	    stack = (regstack_t *)jit_list_get(&bb->stack_map, idx + 1);
+	    stack = JIT_LIST_GET(regstack_t *, &bb->stack_map, idx + 1);
 	    jit_list_remove(&stack->list, (uintptr_t)inst);
 	}
     }
@@ -707,7 +707,7 @@ static void remove_side_exit(lir_builder_t *builder, lir_inst_t *inst)
     if (idx >= 0) {
 	regstack_t *stack;
 	VALUE *pc2;
-	stack = (regstack_t *)jit_list_get(&bb->stack_map, idx + 1);
+	stack = JIT_LIST_GET(regstack_t *, &bb->stack_map, idx + 1);
 	if (RC_DEC(stack) == 0) {
 	    jit_list_remove_idx(&bb->stack_map, idx + 1);
 	    if (JIT_DEBUG_VERBOSE) {

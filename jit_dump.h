@@ -25,7 +25,7 @@ static void dump_lir_inst(lir_t inst)
 	    if (inst->user) {
 		unsigned i;
 		for (i = 0; i < inst->user->size; i++) {
-		    lir_t ir = (lir_t)jit_list_get(inst->user, i);
+		    lir_t ir = JIT_LIST_GET(lir_t, inst->user, i);
 		    if (i != 0) {
 			fprintf(stderr, ",");
 		    }
@@ -66,8 +66,10 @@ static void dump_lir_block(basicblock_t *block)
 	}
 
 	fprintf(stderr, "\n");
-	//variable_table_dump(block->init_table);
-	//variable_table_dump(block->last_table);
+	fprintf(stderr, "init:");
+	local_var_table_dump(block->init_table);
+	fprintf(stderr, "last:");
+	local_var_table_dump(block->last_table);
 	for (i = 0; i < block->insts.size; i++) {
 	    lir_t inst = (lir_t)block->insts.list[i];
 	    dump_lir_inst(inst);
@@ -95,18 +97,18 @@ static void dump_lir_block(basicblock_t *block)
 //    if (DUMP_LIR > 0) {
 //	unsigned i, j, k;
 //	for (k = 0; k < rec->bblist.size; k++) {
-//	    basicblock_t *bb = (basicblock_t *)jit_list_get(&rec->bblist, k);
+//	    basicblock_t *bb = JIT_LIST_GET(basicblock_t *, &rec->bblist, k);
 //	    for (j = 0; j < GET_STACK_MAP_ENTRY_SIZE(&bb->stack_map); j++) {
 //		unsigned idx = GET_STACK_MAP_REAL_INDEX(j);
-//		VALUE *pc = (VALUE *)jit_list_get(&bb->stack_map, idx);
-//		regstack_t *stack = (regstack_t *)jit_list_get(&bb->stack_map, idx + 1);
+//		VALUE *pc = JIT_LIST_GET(VALUE *, &bb->stack_map, idx);
+//		regstack_t *stack = JIT_LIST_GET(regstack_t *, &bb->stack_map, idx + 1);
 //		fprintf(stderr, "side exit %s (size=%04d, refc=%ld): pc=%p: ",
 //		        trace_status_to_str(stack->flag),
 //		        stack->list.size - LIR_RESERVED_REGSTACK_SIZE,
 //		        stack->refc,
 //		        pc);
 //		for (i = 0; i < stack->list.size; i++) {
-//		    lir_t inst = (lir_t)jit_list_get(&stack->list, i);
+//		    lir_t inst = JIT_LIST_GET(lir_t, &stack->list, i);
 //		    if (inst) {
 //			fprintf(stderr, "  [%d] = %04ld;", i - LIR_RESERVED_REGSTACK_SIZE, lir_getid(inst));
 //		    }
