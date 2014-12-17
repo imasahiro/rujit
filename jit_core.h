@@ -29,7 +29,8 @@ static lir_t lir_inst_init(lir_t inst, size_t size, unsigned opcode)
 }
 
 #define LIR_FLAG_UNTAGED (unsigned short)(1 << 0)
-#define LIR_FLAG_TRACE_EXIT (unsigned short)(1 << 15)
+#define LIR_FLAG_INVARIANT (unsigned short)(1 << 1)
+#define LIR_FLAG_TRACE_EXIT (unsigned short)(1 << 2)
 
 static void lir_set(lir_t inst, unsigned short flag)
 {

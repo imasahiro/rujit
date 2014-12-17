@@ -140,7 +140,12 @@ def dump_ir(ir)
     end
   }
 
-  puts "  fprintf(stderr, \"  \" FMT_ID \" %d #{ir.name}\", lir_getid(&ir->base), ir->base.flag);"
+  print "  fprintf(stderr, \"  \" FMT_ID \" %d %d %d #{ir.name}\","
+  print " lir_getid(&ir->base), "
+  print "(ir->base.flag & LIR_FLAG_UNTAGED) ? 1 : 0,"
+  print "(ir->base.flag & LIR_FLAG_INVARIANT) ? 1 : 0,"
+  print "(ir->base.flag & LIR_FLAG_TRACE_EXIT) ? 1 : 0"
+  puts ");"
 
   ir.arg.each{|e|
     t = e.type
