@@ -121,15 +121,6 @@ static lir_t emit_load_const(lir_builder_t *builder, VALUE val)
     return Rval;
 }
 
-//typedef regstack_t jit_snapshot_t;
-//
-//static VALUE *get_current_pc(jit_event_t *e, jit_snapshot_t *snapshot)
-//{
-//    (void)snapshot;
-//    return e->pc;
-//}
-//
-
 #include "yarv2lir.c"
 
 static void record_getspecial(lir_builder_t *builder, jit_event_t *e)
@@ -315,15 +306,24 @@ static void record_branchif(lir_builder_t *builder, jit_event_t *e)
     VALUE val = TOPN(0);
     VALUE *next_pc = e->pc + insn_len(BIN(branchif));
     VALUE *jump_pc = next_pc + dst;
+    jit_event_t e2;
+    int done = 0;
+    lir_t Rguard = NULL;
     if (RTEST(val)) {
+	e2.pc = jump_pc;
+	done = already_recorded_on_trace(&e2);
 	take_snapshot(builder, next_pc);
-	EmitIR(GuardTypeNil, next_pc, Rval);
+	Rguard = EmitIR(GuardTypeNil, next_pc, Rval);
 	EmitJump(builder, jump_pc, 1);
     }
     else {
+	e2.pc = next_pc;
 	take_snapshot(builder, jump_pc);
-	EmitIR(GuardTypeNonNil, jump_pc, Rval);
+	Rguard = EmitIR(GuardTypeNonNil, jump_pc, Rval);
 	EmitJump(builder, next_pc, 1);
+    }
+    if (already_recorded_on_trace(&e2)) {
+	lir_set(Rguard, LIR_FLAG_TRACE_EXIT);
     }
 }
 

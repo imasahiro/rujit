@@ -28,6 +28,14 @@ static lir_t lir_inst_init(lir_t inst, size_t size, unsigned opcode)
     return inst;
 }
 
+#define LIR_FLAG_UNTAGED (unsigned short)(1 << 0)
+#define LIR_FLAG_TRACE_EXIT (unsigned short)(1 << 15)
+
+static void lir_set(lir_t inst, unsigned short flag)
+{
+    inst->flag |= flag;
+}
+
 #define LIR_ID(VAL) lir_getid((lir_t)(VAL))
 static int lir_getid(lir_t inst)
 {
