@@ -65,6 +65,7 @@ static void lir_delete(lir_t inst)
 static lir_t lir_builder_add_inst(lir_builder_t *self, lir_t inst, size_t size);
 #include "lir_template.h"
 #include "lir.c"
+#define EmitIR(OP, ...) Emit_##OP(builder, ##__VA_ARGS__)
 
 static int lir_is_terminator(lir_t inst)
 {
@@ -455,6 +456,11 @@ static void basicblock_append(basicblock_t *bb, lir_inst_t *inst)
     inst->parent = bb;
 }
 
+static lir_t basicblock_remove(basicblock_t *bb, lir_t inst)
+{
+    return (lir_t)JIT_LIST_REMOVE(&bb->insts, inst);
+}
+
 static lir_t basicblock_get(basicblock_t *bb, int i)
 {
     return JIT_LIST_GET(lir_t, &bb->insts, i);
@@ -612,23 +618,17 @@ static void lir_builder_reset(lir_builder_t *self, lir_func_t **func, VALUE *pc)
     assert(*func == NULL);
     *func = lir_func_new(self->mpool);
     self->cur_func = *func;
-    self->shadow_stack.size = 0;
     hashmap_dispose(&self->const_pool, NULL);
     hashmap_init(&self->const_pool, 4);
+
+    jit_list_clear(&self->shadow_stack);
+    jit_list_clear(&self->stack_ops);
 
     entry_bb = lir_builder_create_block(self, NULL);
     lir_builder_set_bb(self, entry_bb);
     cur_bb = lir_builder_create_block(self, pc);
     Emit_Jump(self, cur_bb);
     lir_builder_set_bb(self, cur_bb);
-}
-
-static lir_t lir_builder_pop(lir_builder_t *self)
-{
-    unsigned size = jit_list_size(&self->shadow_stack);
-    lir_t val;
-    assert(size > 0);
-    return (lir_t)jit_list_remove_idx(&self->shadow_stack, size - 1);
 }
 
 static lir_t lir_builder_add_inst(lir_builder_t *self, lir_t inst, size_t size)
@@ -644,9 +644,36 @@ static lir_t lir_builder_add_inst(lir_builder_t *self, lir_t inst, size_t size)
     return newinst;
 }
 
-static void lir_builder_push(lir_builder_t *self, lir_t val)
+static lir_t lir_builder_pop(lir_builder_t *builder)
 {
-    JIT_LIST_ADD(&self->shadow_stack, val);
+    unsigned size = jit_list_size(&builder->shadow_stack);
+    if (size != 0) {
+	lir_t val = (lir_t)jit_list_remove_idx(&builder->shadow_stack, size - 1);
+	lir_t inst = EmitIR(StackPop);
+	JIT_LIST_ADD(&builder->stack_ops, inst);
+	return val;
+    }
+    else {
+	return EmitIR(StackPop);
+    }
+}
+
+static void lir_builder_push(lir_builder_t *builder, lir_t val)
+{
+    JIT_LIST_ADD(&builder->shadow_stack, val);
+    JIT_LIST_ADD(&builder->stack_ops, EmitIR(StackPush, val));
+}
+
+static jit_snapshot_t *lir_builder_take_snapshot(lir_builder_t *builder)
+{
+    jit_snapshot_t *snapshot = MEMORY_POOL_ALLOC(jit_snapshot_t, builder->mpool);
+    unsigned i, id = 0;
+    for (i = 0; i < jit_list_size(&builder->stack_ops); i += 2) {
+	long mode = JIT_LIST_GET(long, &builder->stack_ops, i);
+	lir_t inst = JIT_LIST_GET(lir_t, &builder->stack_ops, i + 1);
+	inst->parent = NULL;
+	snapshot->insts;
+    }
 }
 
 static lir_t lir_builder_get_const(lir_builder_t *builder, VALUE val)

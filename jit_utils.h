@@ -133,6 +133,11 @@ static unsigned jit_list_size(jit_list_t *self)
     return self->size;
 }
 
+static void jit_list_clear(jit_list_t *self)
+{
+    self->size = 0;
+}
+
 static uintptr_t jit_list_get(jit_list_t *self, int idx)
 {
     assert(0 <= idx && idx < (int)self->size);

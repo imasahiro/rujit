@@ -15,7 +15,6 @@
 #define _PUSH(REG) lir_builder_push(builder, REG)
 #define _TOPN(N) regstack_top(&(rec)->regstack, (int)(N))
 #define _SET(N, REG) regstack_set(&(rec)->regstack, (int)(N), REG)
-#define EmitIR(OP, ...) Emit_##OP(builder, ##__VA_ARGS__)
 #define IS_Fixnum(V) FIXNUM_P(V)
 #define IS_Float(V) FLONUM_P(V)
 #define IS_String(V) (!SPECIAL_CONST_P(V) && (RBASIC_CLASS(V) == rb_cString))

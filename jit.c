@@ -101,6 +101,7 @@ typedef struct lir_builder_t {
     struct lir_func_t *cur_func;
     struct lir_basicblock_t *cur_bb;
     jit_list_t shadow_stack;
+    jit_list_t stack_ops;
     hashmap_t const_pool;
     unsigned inst_size;
 } lir_builder_t;
