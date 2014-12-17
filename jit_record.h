@@ -21,6 +21,7 @@
 #define IS_String(V) (!SPECIAL_CONST_P(V) && (RBASIC_CLASS(V) == rb_cString))
 #define IS_Array(V) (!SPECIAL_CONST_P(V) && (RBASIC_CLASS(V) == rb_cArray))
 #define IS_Hash(V) (!SPECIAL_CONST_P(V) && (RBASIC_CLASS(V) == rb_cHash))
+#define IS_Regexp(V) (!SPECIAL_CONST_P(V) && (RBASIC_CLASS(V) == rb_cRegexp))
 #define IS_Math(V) (!SPECIAL_CONST_P(V) && (RBASIC_CLASS(V) == rb_cMath))
 #define IS_Object(V) (!SPECIAL_CONST_P(V) && (RB_TYPE_P(V, T_OBJECT)))
 #define IS_NonSpecialConst(V) (!SPECIAL_CONST_P(V))

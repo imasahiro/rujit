@@ -354,31 +354,31 @@ class Yarv2Lir
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       if_(:argc, 1) {
         if_(:mid, '-@') {
-          guard('Fixnum.-@') {
+          guard('Fixnum.-@', local.snapshot) {
             local.v = emit :FixnumNeg, local.recv
             push local.v
           }
         }
         if_(:mid, '~') {
-          guard('Fixnum.~') {
+          guard('Fixnum.~', local.snapshot) {
             local.v = emit :FixnumComplement, local.recv
             push local.v
           }
         }
         if_(:mid, 'to_f') {
-          guard('Fixnum.to_f') {
+          guard('Fixnum.to_f', local.snapshot) {
             local.v = emit :FixnumToFloat, local.recv
             push local.v
           }
         }
         if_(:mid, 'to_s') {
-          guard('Fixnum.to_s') {
+          guard('Fixnum.to_s', local.snapshot) {
             local.v = emit :FixnumToString, local.recv
             push local.v
           }
         }
         if_(:mid, 'to_i') {
-          guard('Fixnum.to_i') {
+          guard('Fixnum.to_i', local.snapshot) {
             push local.recv
           }
         }
@@ -389,47 +389,47 @@ class Yarv2Lir
         local.swap(local.recv, local.obj)
         local.swap(local.vrecv, local.vobj)
         if_(:mid, '**') {
-          guard('Fixnum.**') {
-            guard(:Fixnum, local.obj, local.vobj) {
+          guard('Fixnum.**', local.snapshot) {
+            guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
               local.v = emit :FixnumPowOverflow, local.recv, local.obj
               push local.v
             }
-            # guard(:Float, local.obj, local.vobj) {
+            # guard(:Float, local.obj, local.vobj, local.snapshot) {
             #   local.v = emit :FixnumPowOverflow, local.recv, local.obj
             #   push local.v
             # }
-            # guard(:Bignum, local.obj, local.vobj) {
+            # guard(:Bignum, local.obj, local.vobj, local.snapshot) {
             #   local.v = emit :FixnumPowOverflow, local.recv, local.obj
             #   push local.v
             # }
           }
         }
         if_(:mid, '&') {
-          guard('Fixnum.&') {
+          guard('Fixnum.&', local.snapshot) {
             local.v = emit :FixnumAnd, local.recv, local.obj
             push local.v
           }
         }
         if_(:mid, '|') {
-          guard('Fixnum.|') {
+          guard('Fixnum.|', local.snapshot) {
             local.v = emit :FixnumOr, local.recv, local.obj
             push local.v
           }
         }
         if_(:mid, '^') {
-          guard('Fixnum.^') {
+          guard('Fixnum.^', local.snapshot) {
             local.v = emit :FixnumXor, local.recv, local.obj
             push local.v
           }
         }
         if_(:mid, '<<') {
-          guard('Fixnum.<<') {
+          guard('Fixnum.<<', local.snapshot) {
             local.v = emit :FixnumLshift, local.recv, local.obj
             push local.v
           }
         }
         if_(:mid, '>>') {
-          guard('Fixnum.>>') {
+          guard('Fixnum.>>', local.snapshot) {
             local.v = emit :FixnumRshift, local.recv, local.obj
             push local.v
           }
@@ -439,24 +439,24 @@ class Yarv2Lir
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       if_(:argc, 1) {
         if_(:mid, '-@') {
-          guard('Float.-@') {
+          guard('Float.-@', local.snapshot) {
             local.v = emit :FloatNeg, local.recv
             push local.v
           }
         }
         if_(:mid, 'to_f') {
-          guard('Float.to_f') {
+          guard('Float.to_f', local.snapshot) {
             push local.recv
           }
         }
         if_(:mid, 'to_s') {
-          guard('Float.to_s') {
+          guard('Float.to_s', local.snapshot) {
             local.v = emit :FloatToString, local.recv
             push local.v
           }
         }
         if_(:mid, 'to_i') {
-          guard('Float.to_i') {
+          guard('Float.to_i', local.snapshot) {
             local.v = emit :FloatToFixnum, local.recv
             push local.v
           }
@@ -466,13 +466,13 @@ class Yarv2Lir
         local.obj = pop
         local.swap(local.recv, local.obj)
         if_(:mid, '**') {
-          guard('Float.**') {
+          guard('Float.**', local.snapshot) {
             local.v = emit :FloatPow, local.recv, local.obj
             push local.v
           }
         }
         if_(:mid, '**') {
-          guard('Float.**') {
+          guard('Float.**', local.snapshot) {
             local.v = emit :FloatPow, local.recv, local.obj
             push local.v
           }
@@ -482,18 +482,18 @@ class Yarv2Lir
 
     guard(:String, local.recv, local.vrecv, local.snapshot) {
       if_(:mid, 'to_f') {
-        guard('String.to_f') {
+        guard('String.to_f', local.snapshot) {
           local.v = emit :StringToFloat, local.recv
           push local.v
         }
       }
       if_(:mid, 'to_s') {
-        guard('String.to_s') {
+        guard('String.to_s', local.snapshot) {
           push local.recv
         }
       }
       if_(:mid, 'to_i') {
-        guard('String.to_i') {
+        guard('String.to_i', local.snapshot) {
           local.v = emit :StringToFixnum, local.recv
           push local.v
         }
@@ -506,91 +506,91 @@ class Yarv2Lir
         local.swap(local.recv, local.obj)
         local.swap(local.vrecv, local.vobj)
         if_(:mid, 'sin') {
-          guard('Math.sin') {
-            guard(:Fixnum, local.obj, local.vobj) {
+          guard('Math.sin', local.snapshot) {
+            guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
               local.t = emit :FixnumToFloat, local.obj
               local.v = emit :MathSin, local.recv, local.t
               push local.v
             }
-            guard(:Float, local.obj, local.vobj) {
+            guard(:Float, local.obj, local.vobj, local.snapshot) {
               local.v = emit :MathSin, local.recv, local.obj
               push local.v
             }
           }
         }
         if_(:mid, 'cos') {
-          guard('Math.cos') {
-            guard(:Fixnum, local.obj, local.vobj) {
+          guard('Math.cos', local.snapshot) {
+            guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
               local.t = emit :FixnumToFloat, local.obj
               local.v = emit :MathCos, local.recv, local.t
               push local.v
             }
-            guard(:Float, local.obj, local.vobj) {
+            guard(:Float, local.obj, local.vobj, local.snapshot) {
               local.v = emit :MathCos, local.recv, local.obj
               push local.v
             }
           }
         }
         if_(:mid, 'tan') {
-          guard('Math.tan') {
-            guard(:Fixnum, local.obj, local.vobj) {
+          guard('Math.tan', local.snapshot) {
+            guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
               local.t = emit :FixnumToFloat, local.obj
               local.v = emit :MathTan, local.recv, local.t
               push local.v
             }
-            guard(:Float, local.obj, local.vobj) {
+            guard(:Float, local.obj, local.vobj, local.snapshot) {
               local.v = emit :MathTan, local.recv, local.obj
               push local.v
             }
           }
         }
         if_(:mid, 'exp') {
-          guard('Math.exp') {
-            guard(:Fixnum, local.obj, local.vobj) {
+          guard('Math.exp', local.snapshot) {
+            guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
               local.t = emit :FixnumToFloat, local.obj
               local.v = emit :MathExp, local.recv, local.t
               push local.v
             }
-            guard(:Float, local.obj, local.vobj) {
+            guard(:Float, local.obj, local.vobj, local.snapshot) {
               local.v = emit :MathExp, local.recv, local.obj
               push local.v
             }
           }
         }
         if_(:mid, 'sqrt') {
-          guard('Math.sqrt') {
-            guard(:Fixnum, local.obj, local.vobj) {
+          guard('Math.sqrt', local.snapshot) {
+            guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
               local.t = emit :FixnumToFloat, local.obj
               local.v = emit :MathSqrt, local.recv, local.t
               push local.v
             }
-            guard(:Float, local.obj, local.vobj) {
+            guard(:Float, local.obj, local.vobj, local.snapshot) {
               local.v = emit :MathSqrt, local.recv, local.obj
               push local.v
             }
           }
         }
         if_(:mid, 'log10') {
-          guard('Math.log10') {
-            guard(:Fixnum, local.obj, local.vobj) {
+          guard('Math.log10', local.snapshot) {
+            guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
               local.t = emit :FixnumToFloat, local.obj
               local.v = emit :MathLog10, local.recv, local.t
               push local.v
             }
-            guard(:Float, local.obj, local.vobj) {
+            guard(:Float, local.obj, local.vobj, local.snapshot) {
               local.v = emit :MathLog10, local.recv, local.obj
               push local.v
             }
           }
         }
         if_(:mid, 'log2') {
-          guard('Math.log2') {
-            guard(:Fixnum, local.obj, local.vobj) {
+          guard('Math.log2', local.snapshot) {
+            guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
               local.t = emit :FixnumToFloat, local.obj
               local.v = emit :MathLog2, local.recv, local.t
               push local.v
             }
-            guard(:Float, local.obj, local.vobj) {
+            guard(:Float, local.obj, local.vobj, local.snapshot) {
               local.v = emit :MathLog2, local.recv, local.obj
               push local.v
             }
@@ -602,7 +602,7 @@ class Yarv2Lir
       local.recv = pop
       if_(:argc, 1) {
         if_(:mid, 'length') {
-          guard('Array.length') {
+          guard('Array.length', local.snapshot) {
             local.v = emit :ArrayLength, local.recv
             push local.v
           }
@@ -613,8 +613,8 @@ class Yarv2Lir
         local.vobj = topn(0)
         local.swap(local.recv, local.obj)
         if_(:mid, '[]') {
-          guard(:Fixnum, local.obj, local.vobj) {
-            guard('Array.[]') {
+          guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
+            guard('Array.[]', local.snapshot) {
               local.v = emit :ArrayGet, local.recv, local.obj
               push local.v
             }
@@ -627,8 +627,8 @@ class Yarv2Lir
         local.vidx = topn(1)
         local.swap(local.recv, local.idx)
         if_(:mid, '[]=') {
-          guard(:Fixnum, local.idx, local.vidx) {
-            guard('Array.[]=') {
+          guard(:Fixnum, local.idx, local.vidx, local.snapshot) {
+            guard('Array.[]=', local.snapshot) {
               local.v = emit :ArraySet, local.recv, local.idx, local.obj
               push local.v
             }
@@ -666,7 +666,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Fixnum.+') {
+        guard('Fixnum.+', local.snapshot) {
           local.v = emit :FixnumAddOverflow, local.recv, local.obj
           push local.v
         }
@@ -674,13 +674,13 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard('Float.+') {
+        guard('Float.+', local.snapshot) {
           local.v = emit :FloatAdd, local.recv, local.obj
           push local.v
         }
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Float.+') {
+        guard('Float.+', local.snapshot) {
           local.t = emit :FixnumToFloat, local.obj
           local.v = emit :FloatAdd, local.recv, local.t
           push local.v
@@ -689,7 +689,7 @@ class Yarv2Lir
     }
     guard(:String, local.recv, local.vrecv, local.snapshot) {
       guard(:String, local.obj, local.vobj, local.snapshot) {
-        guard('String.+') {
+        guard('String.+', local.snapshot) {
           local.v = emit :StringAdd, local.recv, local.obj
           push local.v
         }
@@ -697,7 +697,7 @@ class Yarv2Lir
     }
     guard(:Array, local.recv, local.vrecv, local.snapshot) {
       guard(:Array, local.obj, local.vobj, local.snapshot) {
-        guard('Array.+') {
+        guard('Array.+', local.snapshot) {
           local.v = emit :ArrayConcat, local.recv, local.obj
           push local.v
         }
@@ -718,7 +718,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Fixnum.-') {
+        guard('Fixnum.-', local.snapshot) {
           local.v = emit :FixnumSubOverflow, local.recv, local.obj
           push local.v
         }
@@ -726,13 +726,13 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard('Float.-') {
+        guard('Float.-', local.snapshot) {
           local.v = emit :FloatSub, local.recv, local.obj
           push local.v
         }
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Float.-') {
+        guard('Float.-', local.snapshot) {
           local.t = emit :FixnumToFloat, local.obj
           local.v = emit :FloatSub, local.recv, local.t
           push local.v
@@ -753,7 +753,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Fixnum.*') {
+        guard('Fixnum.*', local.snapshot) {
           local.v = emit :FixnumMulOverflow, local.recv, local.obj
           push local.v
         }
@@ -761,13 +761,13 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard('Float.*') {
+        guard('Float.*', local.snapshot) {
           local.v = emit :FloatMul, local.recv, local.obj
           push local.v
         }
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Float.*') {
+        guard('Float.*', local.snapshot) {
           local.t = emit :FixnumToFloat, local.obj
           local.v = emit :FloatMul, local.recv, local.t
           push local.v
@@ -789,7 +789,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Fixnum./') {
+        guard('Fixnum./', local.snapshot) {
           local.v = emit :FixnumDivOverflow, local.recv, local.obj
           push local.v
         }
@@ -797,13 +797,13 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard('Float./') {
+        guard('Float./', local.snapshot) {
           local.v = emit :FloatDiv, local.recv, local.obj
           push local.v
         }
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Float./') {
+        guard('Float./', local.snapshot) {
           local.t = emit :FixnumToFloat, local.obj
           local.v = emit :FloatDiv, local.recv, local.t
           push local.v
@@ -825,7 +825,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Fixnum.%') {
+        guard('Fixnum.%', local.snapshot) {
           local.v = emit :FixnumModOverflow, local.recv, local.obj
           push local.v
         }
@@ -833,13 +833,13 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard('Float.%') {
+        guard('Float.%', local.snapshot) {
           local.v = emit :FloatMod, local.recv, local.obj
           push local.v
         }
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Float.%') {
+        guard('Float.%', local.snapshot) {
           local.t = emit :FixnumToFloat, local.obj
           local.v = emit :FloatMod, local.recv, local.t
           push local.v
@@ -860,7 +860,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Fixnum.==') {
+        guard('Fixnum.==', local.snapshot) {
           local.v = emit :FixnumEq, local.recv, local.obj
           push local.v
         }
@@ -868,13 +868,13 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard('Float.==') {
+        guard('Float.==', local.snapshot) {
           local.v = emit :FloatEq, local.recv, local.obj
           push local.v
         }
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Float.==') {
+        guard('Float.==', local.snapshot) {
           local.t = emit :FixnumToFloat, local.obj
           local.v = emit :FloatEq, local.recv, local.t
           push local.v
@@ -896,7 +896,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Fixnum.!=') {
+        guard('Fixnum.!=', local.snapshot) {
           local.v = emit :FixnumNe, local.recv, local.obj
           push local.v
         }
@@ -904,13 +904,13 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard('Float.!=') {
+        guard('Float.!=', local.snapshot) {
           local.v = emit :FloatNe, local.recv, local.obj
           push local.v
         }
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Float.!=') {
+        guard('Float.!=', local.snapshot) {
           local.t = emit :FixnumToFloat, local.obj
           local.v = emit :FloatNe, local.recv, local.t
           push local.v
@@ -932,7 +932,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Fixnum.>') {
+        guard('Fixnum.>', local.snapshot) {
           local.v = emit :FixnumGt, local.recv, local.obj
           push local.v
         }
@@ -940,13 +940,13 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard('Float.>') {
+        guard('Float.>', local.snapshot) {
           local.v = emit :FloatGt, local.recv, local.obj
           push local.v
         }
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Float.>') {
+        guard('Float.>', local.snapshot) {
           local.t = emit :FixnumToFloat, local.obj
           local.v = emit :FloatGt, local.recv, local.t
           push local.v
@@ -967,7 +967,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Fixnum.>=') {
+        guard('Fixnum.>=', local.snapshot) {
           local.v = emit :FixnumGe, local.recv, local.obj
           push local.v
         }
@@ -975,13 +975,13 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard('Float.>=') {
+        guard('Float.>=', local.snapshot) {
           local.v = emit :FloatGe, local.recv, local.obj
           push local.v
         }
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Float.>=') {
+        guard('Float.>=', local.snapshot) {
           local.t = emit :FixnumToFloat, local.obj
           local.v = emit :FloatGe, local.recv, local.t
           push local.v
@@ -1002,7 +1002,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Fixnum.<') {
+        guard('Fixnum.<', local.snapshot) {
           local.v = emit :FixnumLt, local.recv, local.obj
           push local.v
         }
@@ -1010,13 +1010,13 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard('Float.<') {
+        guard('Float.<', local.snapshot) {
           local.v = emit :FloatLt, local.recv, local.obj
           push local.v
         }
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Float.<') {
+        guard('Float.<', local.snapshot) {
           local.t = emit :FixnumToFloat, local.obj
           local.v = emit :FloatLt, local.recv, local.t
           push local.v
@@ -1037,7 +1037,7 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:Fixnum, local.recv, local.vrecv, local.snapshot) {
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Fixnum.<=') {
+        guard('Fixnum.<=', local.snapshot) {
           local.v = emit :FixnumLe, local.recv, local.obj
           push local.v
         }
@@ -1045,13 +1045,13 @@ class Yarv2Lir
     }
     guard(:Float, local.recv, local.vrecv, local.snapshot) {
       guard(:Float, local.obj, local.vobj, local.snapshot) {
-        guard('Float.<=') {
+        guard('Float.<=', local.snapshot) {
           local.v = emit :FloatLe, local.recv, local.obj
           push local.v
         }
       }
       guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-        guard('Float.<=') {
+        guard('Float.<=', local.snapshot) {
           local.t = emit :FixnumToFloat, local.obj
           local.v = emit :FloatLe, local.recv, local.t
           push local.v
@@ -1072,14 +1072,14 @@ class Yarv2Lir
     local.vrecv = topn(1)
     guard(:String, local.recv, local.vrecv, local.snapshot) {
       guard(:String, local.obj, local.vobj, local.snapshot) {
-        guard('String.<<') {
+        guard('String.<<', local.snapshot) {
           local.v = emit :StringAdd, local.recv, local.obj
           push local.v
         }
       }
     }
     guard(:Array, local.recv, local.vrecv, local.snapshot) {
-      guard('Array.<<') {
+      guard('Array.<<', local.snapshot) {
         local.v = emit :ArrayAdd, local.recv, local.obj
         push local.v
       }
@@ -1100,14 +1100,14 @@ class Yarv2Lir
     guard(:NonSpecialConst, local.recv, local.vrecv, local.snapshot) {
       guard(:Array, local.recv, local.vrecv, local.snapshot) {
         guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-          guard('Array.[]') {
+          guard('Array.[]', local.snapshot) {
             local.v = emit :ArrayGet, local.recv, local.obj
             push local.v
           }
         }
       }
       guard(:Hash, local.recv, local.vrecv, local.snapshot) {
-        guard('Hash.[]') {
+        guard('Hash.[]', local.snapshot) {
           local.v = emit :HashGet, local.recv, local.obj
           push local.v
         }
@@ -1128,14 +1128,14 @@ class Yarv2Lir
     guard(:NonSpecialConst, local.recv, local.vrecv, local.snapshot) {
       guard(:Array, local.recv, local.vrecv, local.snapshot) {
         guard(:Fixnum, local.obj, local.vobj, local.snapshot) {
-          guard('Array.[]') {
+          guard('Array.[]', local.snapshot) {
             local.v = emit :ArrayGet, local.recv, local.obj
             push local.v
           }
         }
       }
       guard(:Hash, local.recv, local.vrecv, local.snapshot) {
-        guard('Hash.[]') {
+        guard('Hash.[]', local.snapshot) {
           local.v = emit :HashGet, local.recv, local.obj
           push local.v
         }
@@ -1158,14 +1158,14 @@ class Yarv2Lir
     guard(:NonSpecialConst, local.recv, local.vrecv, local.snapshot) {
       guard(:Array, local.recv, local.vrecv, local.snapshot) {
         guard(:Fixnum, local.idx, local.vidx, local.snapshot) {
-          guard('Array.[]=') {
+          guard('Array.[]=', local.snapshot) {
             local.v = emit :ArraySet, local.recv, local.idx, local.obj
             push local.v
           }
         }
       }
       guard(:Hash, local.recv, local.vrecv, local.snapshot) {
-        guard('Hash.[]=') {
+        guard('Hash.[]=', local.snapshot) {
           local.v = emit :HashSet, local.recv, local.idx, local.obj
           push local.v
         }
@@ -1187,14 +1187,14 @@ class Yarv2Lir
     guard(:NonSpecialConst, local.recv, local.vrecv, local.snapshot) {
       guard(:Array, local.recv, local.vrecv, local.snapshot) {
         guard(:Fixnum, local.idx, local.vidx, local.snapshot) {
-          guard('Array.[]=') {
+          guard('Array.[]=', local.snapshot) {
             local.v = emit :ArraySet, local.recv, local.idx, local.obj
             push local.v
           }
         }
       }
       guard(:Hash, local.recv, local.vrecv, local.snapshot) {
-        guard('Hash.[]=') {
+        guard('Hash.[]=', local.snapshot) {
           local.v = emit :HashSet, local.recv, local.idx, local.obj
           push local.v
         }
@@ -1211,19 +1211,19 @@ class Yarv2Lir
     local.recv = pop
     local.vrecv = topn(0)
     guard(:String, local.recv, local.vrecv, local.snapshot) {
-      guard('String.length') {
+      guard('String.length', local.snapshot) {
         local.v = emit :StringLength, local.recv
         push local.v
       }
     }
     guard(:Array, local.recv, local.vrecv, local.snapshot) {
-      guard('Array.length') {
+      guard('Array.length', local.snapshot) {
         local.v = emit :ArrayLength, local.recv
         push local.v
       }
     }
     guard(:Hash, local.recv, local.vrecv, local.snapshot) {
-      guard('Hash.length') {
+      guard('Hash.length', local.snapshot) {
         local.v = emit :HashLength, local.recv
         push local.v
       }
@@ -1239,19 +1239,19 @@ class Yarv2Lir
     local.recv = pop
     local.vrecv = topn(0)
     guard(:String, local.recv, local.vrecv, local.snapshot) {
-      guard('String.size') {
+      guard('String.size', local.snapshot) {
         local.v = emit :StringLength, local.recv
         push local.v
       }
     }
     guard(:Array, local.recv, local.vrecv, local.snapshot) {
-      guard('Array.size') {
+      guard('Array.size', local.snapshot) {
         local.v = emit :ArrayLength, local.recv
         push local.v
       }
     }
     guard(:Hash, local.recv, local.vrecv, local.snapshot) {
-      guard('Hash.size') {
+      guard('Hash.size', local.snapshot) {
         local.v = emit :HashLength, local.recv
         push local.v
       }
@@ -1267,19 +1267,19 @@ class Yarv2Lir
     local.recv = pop
     local.vrecv = topn(0)
     guard(:String, local.recv, local.vrecv, local.snapshot) {
-      guard('String.empty?') {
+      guard('String.empty?', local.snapshot) {
         local.v = emit :StringEmptyP, local.recv
         push local.v
       }
     }
     guard(:Array, local.recv, local.vrecv, local.snapshot) {
-      guard('Array.empty?') {
+      guard('Array.empty?', local.snapshot) {
         local.v = emit :ArrayEmptyP, local.recv
         push local.v
       }
     }
     guard(:Hash, local.recv, local.vrecv, local.snapshot) {
-      guard('Hash.empty?') {
+      guard('Hash.empty?', local.snapshot) {
         local.v = emit :HashEmptyP, local.recv
         push local.v
       }
@@ -1303,9 +1303,12 @@ class Yarv2Lir
     local.ci = operand :CALL_INFO, 1
     local.obj  = pop
     local.recv = pop
-    guard('RegExp.=~') {
-      local.v = emit :RegExpMatch, local.recv, local.obj
-      push local.v
+    local.vobj = topn(1)
+    guard('RegExp.=~', local.snapshot) {
+      guard(:Regexp, local.obj, local.vobj, local.snapshot) {
+        local.v = emit :RegExpMatch, local.recv, local.obj
+        push local.v
+      }
     }
     other {
       local.v = emit_call_method
@@ -1318,9 +1321,11 @@ class Yarv2Lir
     local.vobj = operand :VALUE, 1
     local.obj  = emit_load_const(local.vobj)
     local.recv = pop
-    guard('RegExp.=~') {
-      local.v = emit :RegExpMatch, local.recv, local.obj
-      push local.v
+    guard('RegExp.=~', local.snapshot) {
+      guard(:Regexp, local.obj, local.vobj, local.snapshot) {
+        local.v = emit :RegExpMatch, local.recv, local.obj
+        push local.v
+      }
     }
     other {
       local.v = emit_call_method

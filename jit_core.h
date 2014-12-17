@@ -72,7 +72,7 @@ static int lir_is_terminator(lir_t inst)
 #define IS_TERMINATOR(OPNAME) \
     case OPCODE_I##OPNAME:    \
 	return LIR_IS_TERMINATOR_##OPNAME;
-	// 	LIR_EACH(IS_TERMINATOR);
+	LIR_EACH(IS_TERMINATOR);
 	default:
 	    assert(0 && "unreachable");
 #undef IS_TERMINATOR
@@ -86,7 +86,7 @@ static int lir_is_guard(lir_t inst)
 #define IS_TERMINATOR(OPNAME) \
     case OPCODE_I##OPNAME:    \
 	return LIR_IS_GUARD_INST_##OPNAME;
-	// 	LIR_EACH(IS_TERMINATOR);
+	LIR_EACH(IS_TERMINATOR);
 	default:
 	    assert(0 && "unreachable");
 #undef IS_TERMINATOR
@@ -101,7 +101,7 @@ static lir_t *lir_inst_get_args(lir_t inst, int idx)
 	return GetNext_##OPNAME(inst, idx);
 
     switch (inst->opcode) {
-	// 	LIR_EACH(GET_ARG);
+	LIR_EACH(GET_ARG);
 	default:
 	    assert(0 && "unreachable");
     }
