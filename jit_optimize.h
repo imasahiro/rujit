@@ -8,6 +8,7 @@
 
  **********************************************************************/
 
+static lir_t constant_fold_inst(lir_builder_t *builder, lir_t inst);
 static lir_t emit_load_const(lir_builder_t *builder, VALUE val);
 #define BB_PUSH_FRAME (1 << 0)
 #define BB_POP_FRAME (1 << 1)
@@ -17,20 +18,26 @@ typedef VALUE (*lir_folder2_t)(VALUE, VALUE);
 
 static void update_side_exit_reference_count(lir_t inst)
 {
-    regstack_t *stack;
+    unsigned i;
+    jit_snapshot_t *snapshot;
     basicblock_t *bb = inst->parent;
     VALUE *pc = ((IGuardTypeFixnum *)inst)->Exit;
-    int idx = jit_list_indexof(&bb->stack_map, (uintptr_t)pc);
-    assert(0 <= idx);
-    stack = JIT_LIST_GET(regstack_t *, &bb->stack_map, idx + 1);
-    RC_INC(stack);
+    for (i = 0; i < jit_list_size(&bb->side_exits); i++) {
+	snapshot = JIT_LIST_GET(jit_snapshot_t *, &bb->side_exits, i);
+	if (snapshot->pc == pc) {
+	    break;
+	}
+    }
+    assert(snapshot != NULL);
+    RC_INC(snapshot);
 }
 
-static void lir_inst_replace_with(lir_builder_t *builder, lir_inst_t *inst, lir_inst_t *newinst)
+static void lir_inst_replace_with(lir_builder_t *builder, lir_t inst, lir_t newinst)
 {
     unsigned i, j, k;
-    lir_inst_t **ref = NULL;
-    lir_inst_t *user;
+    lir_t *ref = NULL;
+    lir_t user;
+    lir_func_t *func = builder->cur_func;
     // 1. replace argument of inst->user->list[x]
     if (inst->user) {
 	for (i = 0; i < inst->user->size; i++) {
@@ -39,7 +46,7 @@ static void lir_inst_replace_with(lir_builder_t *builder, lir_inst_t *inst, lir_
 	    while ((ref = lir_inst_get_args(user, j)) != NULL) {
 		if (ref && *ref == inst) {
 		    *ref = newinst;
-		    lir_inst_adduser(builder, newinst, user);
+		    lir_inst_adduser(builder->mpool, newinst, user);
 		}
 		j += 1;
 	    }
@@ -49,19 +56,22 @@ static void lir_inst_replace_with(lir_builder_t *builder, lir_inst_t *inst, lir_
     }
 
     // 2. replace side exit and variable_table
-    for (k = 0; k < lir_builder_blocks(rec)->size; k++) {
-	basicblock_t *bb = JIT_LIST_GET(basicblock_t *, &rec->bblist, k);
-	// 2.1. replace side exit
-	for (j = 0; j < GET_STACK_MAP_ENTRY_SIZE(&bb->stack_map); j++) {
-	    regstack_t *stack;
-	    unsigned idx = GET_STACK_MAP_REAL_INDEX(j);
-	    stack = JIT_LIST_GET(regstack_t *, &bb->stack_map, idx + 1);
-	    for (i = 0; i < stack->list.size; i++) {
-		if (inst == regstack_get_direct(stack, i)) {
-		    regstack_set_direct(stack, i, newinst);
-		}
-	    }
-	}
+    for (k = 0; k < jit_list_size(&func->bblist); k++) {
+	basicblock_t *bb = JIT_LIST_GET(basicblock_t *, &func->bblist, k);
+	//// 2.1. replace side exit
+	//for (j = 0; j < GET_STACK_MAP_ENTRY_SIZE(&bb->side_exits); j++) {
+	//    jit_snapshot_t *snapshot;
+	//    stack = JIT_LIST_GET(jit_snapshot_t *, &bb->side_exits, idx + 1);
+	//    for (i = 0; i < jit_list_size(&snapshot->insts); i++) {
+	//	lir_t val = JIT_LIST_GET(lir_t, &snapshot->insts, i);
+	//	if (lir_opcode(val) == OPCODE_IStackPush) {
+	//	    IStackPush *sp = (IStackPush *)val;
+	//	    if (sp->Val == inst) {
+	//		sp->Val = inst;
+	//	    }
+	//	}
+	//    }
+	//}
 	// 2.2. replace variable_table
 	if (bb->init_table->self == inst) {
 	    bb->init_table->self = newinst;
@@ -113,7 +123,7 @@ static int lir_inst_have_side_effect(int opcode)
     return 0;
 }
 
-static int is_constant(lir_inst_t *inst)
+static int is_constant(lir_t inst)
 {
     switch (lir_opcode(inst)) {
 	case OPCODE_ILoadConstNil:
@@ -130,7 +140,7 @@ static int is_constant(lir_inst_t *inst)
     return 0;
 }
 
-static int elimnate_guard(lir_builder_t *builder, lir_inst_t *inst)
+static int elimnate_guard(lir_builder_t *builder, lir_t inst)
 {
     /* Remove guard that always true
      * e.g.) L2 is always true becuase L1 is fixnum. So we can remove L2.
@@ -138,7 +148,7 @@ static int elimnate_guard(lir_builder_t *builder, lir_inst_t *inst)
      * L2 = GuardTypeFixnum L1 exit_pc
      */
     IGuardTypeFixnum *guard = (IGuardTypeFixnum *)inst;
-    lir_inst_t *src;
+    lir_t src;
 
     if (!lir_is_guard(inst)) {
 	return 0;
@@ -269,7 +279,7 @@ static int elimnate_guard(lir_builder_t *builder, lir_inst_t *inst)
     return 0;
 }
 
-static lir_inst_t *fold_binop_fixnum2(lir_builder_t *builder, lir_folder_t folder, lir_inst_t *inst)
+static lir_t fold_binop_fixnum2(lir_builder_t *builder, lir_folder_t folder, lir_t inst)
 {
     ILoadConstFixnum *LHS = (ILoadConstFixnum *)*lir_inst_get_args(inst, 0);
     ILoadConstFixnum *RHS = (ILoadConstFixnum *)*lir_inst_get_args(inst, 1);
@@ -292,7 +302,7 @@ static lir_inst_t *fold_binop_fixnum2(lir_builder_t *builder, lir_folder_t folde
     return inst;
 }
 
-static lir_inst_t *fold_binop_float2(lir_builder_t *builder, lir_folder_t folder, lir_inst_t *inst)
+static lir_t fold_binop_float2(lir_builder_t *builder, lir_folder_t folder, lir_t inst)
 {
     ILoadConstFloat *LHS = (ILoadConstFloat *)*lir_inst_get_args(inst, 0);
     ILoadConstFloat *RHS = (ILoadConstFloat *)*lir_inst_get_args(inst, 1);
@@ -316,7 +326,7 @@ static lir_inst_t *fold_binop_float2(lir_builder_t *builder, lir_folder_t folder
     return inst;
 }
 
-static lir_inst_t *remove_overflow_check(lir_builder_t *builder, lir_inst_t *inst)
+static lir_t remove_overflow_check(lir_builder_t *builder, lir_t inst)
 {
     IFixnumAdd *ir = (IFixnumAdd *)inst;
     switch (lir_opcode(inst)) {
@@ -336,7 +346,7 @@ static lir_inst_t *remove_overflow_check(lir_builder_t *builder, lir_inst_t *ins
     return inst;
 }
 
-static lir_inst_t *fold_binop_cast(lir_builder_t *builder, lir_folder_t folder, lir_inst_t *inst)
+static lir_t fold_binop_cast(lir_builder_t *builder, lir_folder_t folder, lir_t inst)
 {
     VALUE val = Qundef;
     ILoadConstObject *Val = (ILoadConstObject *)*lir_inst_get_args(inst, 0);
@@ -387,32 +397,32 @@ static lir_inst_t *fold_binop_cast(lir_builder_t *builder, lir_folder_t folder, 
     return inst;
 }
 
-static lir_inst_t *fold_binop_math(lir_builder_t *builder, lir_folder_t folder, lir_inst_t *inst)
+static lir_t fold_binop_math(lir_builder_t *builder, lir_folder_t folder, lir_t inst)
 {
     // (MathOp (LoadConstObject MathObj) (FloatValue))
     // => (LoadConstFloat)
-    lir_inst_t *LHS = *lir_inst_get_args(inst, 0);
-    lir_inst_t *RHS = *lir_inst_get_args(inst, 1);
+    lir_t LHS = *lir_inst_get_args(inst, 0);
+    lir_t RHS = *lir_inst_get_args(inst, 1);
     assert(folder == rb_jit_exec_IStringAdd);
     if (lir_opcode(LHS) == OPCODE_ILoadConstObject) {
-	ILoadConstObject *left = (ILoadConstObject)LHS;
-	if ((RBASIC_CLASS(left->Val) == rb_cMath) {
-	    if (lir_opcode(RHS) == OPCODE_ILoadConstString) {
-		ILoadConstString *rstr = (ILoadConstString *)RHS;
-		VALUE val = rb_str_plus(lstr->Val, rstr->Val);
-		lir_inst_t *tmp = emit_load_const(builder, val);
-		return Emit_AllocString(builder, tmp);
+	ILoadConstObject *left = (ILoadConstObject *)LHS;
+	if (RBASIC_CLASS(left->Val) == rb_cMath) {
+	    RHS = constant_fold_inst(builder, RHS);
+	    if (is_constant(RHS) && lir_get_type(RHS) == LIR_TYPE_Float) {
+		VALUE val = ((ILoadConstFloat *)RHS)->Val;
+		val = ((lir_folder2_t)folder)(Qnil, val);
+		return emit_load_const(builder, val);
 	    }
 	}
     }
     return inst;
 }
 
-static lir_inst_t *fold_string_add(lir_builder_t *builder, lir_folder_t folder, lir_inst_t *inst)
+static lir_t fold_string_add(lir_builder_t *builder, lir_folder_t folder, lir_t inst)
 {
 #if 1
-    lir_inst_t *LHS = *lir_inst_get_args(inst, 0);
-    lir_inst_t *RHS = *lir_inst_get_args(inst, 1);
+    lir_t LHS = *lir_inst_get_args(inst, 0);
+    lir_t RHS = *lir_inst_get_args(inst, 1);
     assert(folder == rb_jit_exec_IStringAdd);
     // (StringAdd (AllocStr LoadConstString1) LoadConstString2)
     // => (AllocStr LoadConstString3)
@@ -423,7 +433,7 @@ static lir_inst_t *fold_string_add(lir_builder_t *builder, lir_folder_t folder, 
 	    if (lir_opcode(RHS) == OPCODE_ILoadConstString) {
 		ILoadConstString *rstr = (ILoadConstString *)RHS;
 		VALUE val = rb_str_plus(lstr->Val, rstr->Val);
-		lir_inst_t *tmp = emit_load_const(builder, val);
+		lir_t tmp = emit_load_const(builder, val);
 		return Emit_AllocString(builder, tmp);
 	    }
 	}
@@ -432,7 +442,7 @@ static lir_inst_t *fold_string_add(lir_builder_t *builder, lir_folder_t folder, 
     return inst;
 }
 
-static lir_inst_t *constant_fold_inst(lir_builder_t *builder, lir_inst_t *inst)
+static lir_t constant_fold_inst(lir_builder_t *builder, lir_t inst)
 {
     lir_folder_t folder;
     if (lir_is_guard(inst) || lir_is_terminator(inst)) {
@@ -525,19 +535,19 @@ typedef struct worklist_t {
     lir_builder_t *builder;
 } worklist_t;
 
-typedef int (*worklist_ir_func_t)(worklist_t *, lir_inst_t *);
+typedef int (*worklist_ir_func_t)(worklist_t *, lir_t);
 typedef int (*worklist_bb_func_t)(worklist_t *, basicblock_t *);
 
-static void worklist_push(worklist_t *list, lir_inst_t *ir)
+static void worklist_push(worklist_t *list, lir_t ir)
 {
     if (jit_list_indexof(&list->list, (uintptr_t)ir) == -1) {
 	jit_list_add(&list->list, (uintptr_t)ir);
     }
 }
 
-static lir_inst_t *worklist_pop(worklist_t *list)
+static lir_t worklist_pop(worklist_t *list)
 {
-    lir_inst_t *last;
+    lir_t last;
     assert(list->list.size > 0);
     last = JIT_LIST_GET(lir_t, &list->list, list->list.size - 1);
     list->list.size -= 1;
@@ -549,28 +559,30 @@ static int worklist_empty(worklist_t *list)
     return list->list.size == 0;
 }
 
-static void worklist_init(worklist_t *list, jit_list_t *blocks, lir_builder_t *builder)
+static void worklist_init(worklist_t *list, lir_builder_t *builder)
 {
     unsigned i, j;
+    lir_func_t *func = builder->cur_func;
     jit_list_init(&list->list);
-    list->rec = rec;
-    for (j = 0; j < blocks->size; j++) {
-	basicblock_t *block = JIT_LIST_GET(basicblock_t *, blocks, j);
+    list->builder = builder;
+    for (j = 0; j < jit_list_size(&func->bblist); j++) {
+	basicblock_t *block = JIT_LIST_GET(basicblock_t *, &func->bblist, j);
 	for (i = 0; i < block->insts.size; i++) {
-	    lir_inst_t *inst = basicblock_get(block, i);
+	    lir_t inst = basicblock_get(block, i);
 	    assert(inst != NULL);
 	    worklist_push(list, inst);
 	}
     }
 }
 
-static void worklist_init2(worklist_t *list, jit_list_t *blocks, lir_builder_t *builder)
+static void worklist_init2(worklist_t *list, lir_builder_t *builder)
 {
     unsigned i;
+    lir_func_t *func = builder->cur_func;
     jit_list_init(&list->list);
-    list->rec = rec;
-    for (i = 0; i < lir_builder_blocks(rec)->size; i++) {
-	basicblock_t *block = JIT_LIST_GET(basicblock_t *, &rec->bblist, i);
+    list->builder = builder;
+    for (i = 0; i < jit_list_size(&func->bblist); i++) {
+	basicblock_t *block = JIT_LIST_GET(basicblock_t *, &func->bblist, i);
 	worklist_push(list, &block->base);
     }
 }
@@ -584,7 +596,7 @@ static int apply_bb_worklist(lir_builder_t *builder, worklist_bb_func_t func)
 {
     int modified = 0;
     worklist_t worklist;
-    worklist_init2(&worklist, &rec->bblist, rec);
+    worklist_init2(&worklist, builder);
     while (!worklist_empty(&worklist)) {
 	basicblock_t *bb = (basicblock_t *)worklist_pop(&worklist);
 	modified += func(&worklist, bb);
@@ -597,24 +609,24 @@ static int apply_worklist(lir_builder_t *builder, worklist_ir_func_t func)
 {
     int modified = 0;
     worklist_t worklist;
-    worklist_init(&worklist, &rec->bblist, rec);
+    worklist_init(&worklist, builder);
     while (!worklist_empty(&worklist)) {
-	lir_inst_t *inst = worklist_pop(&worklist);
+	lir_t inst = worklist_pop(&worklist);
 	modified += func(&worklist, inst);
     }
     worklist_dispose(&worklist);
     return modified;
 }
 
-static int constant_fold(worklist_t *list, lir_inst_t *inst)
+static int constant_fold(worklist_t *list, lir_t inst)
 {
     unsigned i;
-    lir_inst_t *newinst;
-    lir_builder_t *builder = list->rec;
-    basicblock_t *prevBB = lir_builder_cur_bb(rec->builder);
-    rec->cur_bb = inst->parent;
+    lir_t newinst;
+    lir_builder_t *builder = list->builder;
+    basicblock_t *prevBB = lir_builder_cur_bb(builder);
+    lir_builder_set_bb(builder, inst->parent);
     newinst = constant_fold_inst(builder, inst);
-    lir_builder_set_cur_bb(rec->builder, prevBB);
+    lir_builder_set_bb(builder, prevBB);
     if (inst != newinst) {
 	if (inst->user) {
 	    for (i = 0; i < inst->user->size; i++) {
@@ -627,22 +639,23 @@ static int constant_fold(worklist_t *list, lir_inst_t *inst)
     return 0;
 }
 
-static int has_side_effect(lir_inst_t *inst)
+static int has_side_effect(lir_t inst)
 {
     return lir_inst_have_side_effect(lir_opcode(inst));
 }
 
-static int need_by_side_exit(lir_builder_t *builder, lir_inst_t *inst)
+static int need_by_side_exit(lir_builder_t *builder, lir_t inst)
 {
     unsigned i, j, k;
-    for (k = 0; k < lir_builder_blocks(rec)->size; k++) {
-	basicblock_t *bb = JIT_LIST_GET(basicblock_t *, &rec->bblist, k);
-	for (j = 0; j < GET_STACK_MAP_ENTRY_SIZE(&bb->stack_map); j++) {
-	    regstack_t *stack;
-	    unsigned idx = GET_STACK_MAP_REAL_INDEX(j);
-	    stack = JIT_LIST_GET(regstack_t *, &bb->stack_map, idx + 1);
-	    for (i = 0; i < stack->list.size; i++) {
-		if (inst == regstack_get_direct(stack, i)) {
+    jit_snapshot_t *snapshot;
+    lir_func_t *func = builder->cur_func;
+
+    for (k = 0; k < jit_list_size(&func->bblist); k++) {
+	basicblock_t *bb = JIT_LIST_GET(basicblock_t *, &func->bblist, k);
+	for (j = 0; j < jit_list_size(&bb->side_exits); j++) {
+	    snapshot = JIT_LIST_GET(jit_snapshot_t *, &bb->side_exits, j);
+	    for (i = 0; i < jit_list_size(&snapshot->insts); i++) {
+		if (inst == JIT_LIST_GET(lir_t, &snapshot->insts, i)) {
 		    return 1;
 		}
 	    }
@@ -653,7 +666,7 @@ static int need_by_side_exit(lir_builder_t *builder, lir_inst_t *inst)
 
 #define HAS_USER(INST) ((INST)->user && (INST)->user->size > 0)
 
-static int inst_is_dead(lir_builder_t *builder, lir_inst_t *inst)
+static int inst_is_dead(lir_builder_t *builder, lir_t inst)
 {
     if (HAS_USER(inst)) {
 	return 0;
@@ -676,7 +689,7 @@ static int inst_is_dead(lir_builder_t *builder, lir_inst_t *inst)
     return 1;
 }
 
-static void remove_from_parent(lir_inst_t *inst)
+static void remove_from_parent(lir_t inst)
 {
     basicblock_t *bb = inst->parent;
     jit_list_remove(&bb->insts, (uintptr_t)inst);
@@ -685,52 +698,48 @@ static void remove_from_parent(lir_inst_t *inst)
     }
 }
 
-static void remove_from_side_exit(lir_builder_t *builder, lir_inst_t *inst)
+static void remove_from_side_exit(lir_builder_t *builder, lir_t inst)
 {
-    unsigned j, k;
-    for (k = 0; k < lir_builder_blocks(rec)->size; k++) {
-	basicblock_t *bb = JIT_LIST_GET(basicblock_t *, &rec->bblist, k);
-	for (j = 0; j < GET_STACK_MAP_ENTRY_SIZE(&bb->stack_map); j++) {
-	    regstack_t *stack;
-	    unsigned idx = GET_STACK_MAP_REAL_INDEX(j);
-	    stack = JIT_LIST_GET(regstack_t *, &bb->stack_map, idx + 1);
-	    jit_list_remove(&stack->list, (uintptr_t)inst);
-	}
-    }
+    //unsigned j, k;
+    //lir_func_t *cur_func = builder->cur_func;
+    //for (k = 0; k < jit_list_size(&func->bblist); k++) {
+    //    basicblock_t *bb = JIT_LIST_GET(basicblock_t *, &func->bblist, k);
+    //    for (j = 0; j < jit_list_size(&bb->side_exits); j++) {
+    //        snapshot = JIT_LIST_GET(jit_snapshot_t *, &bb->side_exits, j);
+    //        jit_list_remove(&stack->list, (uintptr_t)inst);
+    //    }
+    //}
 }
 
-static void remove_side_exit(lir_builder_t *builder, lir_inst_t *inst)
+static void remove_side_exit(lir_builder_t *builder, lir_t inst)
 {
     basicblock_t *bb = inst->parent;
     VALUE *pc = ((IGuardTypeFixnum *)inst)->Exit;
-    int idx = jit_list_indexof(&bb->stack_map, (uintptr_t)pc);
-    if (idx >= 0) {
-	regstack_t *stack;
-	VALUE *pc2;
-	stack = JIT_LIST_GET(regstack_t *, &bb->stack_map, idx + 1);
-	if (RC_DEC(stack) == 0) {
-	    jit_list_remove_idx(&bb->stack_map, idx + 1);
+    jit_snapshot_t *snapshot;
+    unsigned i;
+
+    for (i = 0; i < jit_list_size(&bb->side_exits); i++) {
+	snapshot = JIT_LIST_GET(jit_snapshot_t *, &bb->side_exits, i);
+	if (snapshot->pc == pc && RC_DEC(snapshot) == 0) {
+	    jit_list_remove_idx(&bb->side_exits, i);
 	    if (JIT_DEBUG_VERBOSE) {
 		fprintf(stderr, "delete side exit=%p pc=%p, inst_id=%d\n",
-		        stack, pc, inst->id);
+		        snapshot, pc, inst->id);
 	    }
-	    pc2 = (VALUE *)jit_list_remove_idx(&bb->stack_map, idx);
-	    assert(pc == pc2);
-	    assert(pc == stack->pc);
 	}
     }
 }
 
-static int eliminate_dead_code(worklist_t *list, lir_inst_t *inst)
+static int eliminate_dead_code(worklist_t *list, lir_t inst)
 {
     int i = 0;
-    lir_inst_t **ref = NULL;
+    lir_t *ref = NULL;
 
-    if (!inst_is_dead(list->rec, inst)) {
+    if (!inst_is_dead(list->builder, inst)) {
 	return 0;
     }
     if (lir_is_guard(inst)) {
-	remove_side_exit(list->rec, inst);
+	remove_side_exit(list->builder, inst);
     }
     while ((ref = lir_inst_get_args(inst, i)) != NULL) {
 	if (*ref) {
@@ -744,7 +753,7 @@ static int eliminate_dead_code(worklist_t *list, lir_inst_t *inst)
     return 1;
 }
 
-static int inst_combine(worklist_t *list, lir_inst_t *inst)
+static int inst_combine(worklist_t *list, lir_t inst)
 {
     unsigned opcode = inst->opcode;
     // naive method frame elimination
@@ -754,7 +763,7 @@ static int inst_combine(worklist_t *list, lir_inst_t *inst)
 	if (next && next->opcode == OPCODE_IFramePop) {
 	    remove_from_parent(next);
 	    remove_from_parent(inst);
-	    remove_from_side_exit(list->rec, inst);
+	    remove_from_side_exit(list->builder, inst);
 	    return 1;
 	}
     }
@@ -777,7 +786,7 @@ static int inst_combine(worklist_t *list, lir_inst_t *inst)
 		if (inst2->opcode == OPCODE_IStackPop) {
 		    remove_from_parent(inst2);
 		    remove_from_parent(inst);
-		    remove_from_side_exit(list->rec, inst);
+		    remove_from_side_exit(list->builder, inst);
 		    return 1;
 		}
 	    }
@@ -789,7 +798,7 @@ static int inst_combine(worklist_t *list, lir_inst_t *inst)
 	    if (inst2->opcode == OPCODE_IStackPush) {
 		remove_from_parent(inst2);
 		remove_from_parent(inst);
-		remove_from_side_exit(list->rec, inst);
+		remove_from_side_exit(list->builder, inst);
 		return 1;
 	    }
 	}
@@ -801,17 +810,17 @@ static int copy_propagation(worklist_t *list, basicblock_t *bb)
 {
     unsigned i, j, k;
     int modified = 0;
-    lir_builder_t *builder = list->rec;
+    lir_builder_t *builder = list->builder;
     worklist_t worklist;
 
     jit_list_init(&worklist.list);
-    worklist.rec = list->rec;
+    worklist.builder = list->builder;
 
     for (i = 0; i < bb->insts.size; i++) {
-	lir_inst_t *inst = basicblock_get(bb, i);
+	lir_t inst = basicblock_get(bb, i);
 	if (inst->opcode == OPCODE_ILoadSelf) {
 	    for (j = i + 1; j < bb->insts.size; j++) {
-		lir_inst_t *inst2 = basicblock_get(bb, j);
+		lir_t inst2 = basicblock_get(bb, j);
 		if (inst2->opcode == OPCODE_ILoadSelf) {
 		    lir_inst_replace_with(builder, inst2, inst);
 		    worklist_push(&worklist, inst2);
@@ -820,7 +829,7 @@ static int copy_propagation(worklist_t *list, basicblock_t *bb)
 	}
 	if (inst->opcode == OPCODE_IEnvLoad) {
 	    for (j = i + 1; j < bb->insts.size; j++) {
-		lir_inst_t *inst2 = basicblock_get(bb, j);
+		lir_t inst2 = basicblock_get(bb, j);
 		if (inst2->opcode == OPCODE_IEnvLoad) {
 		    IEnvLoad *ir1 = (IEnvLoad *)inst;
 		    IEnvLoad *ir2 = (IEnvLoad *)inst2;
@@ -840,7 +849,7 @@ static int copy_propagation(worklist_t *list, basicblock_t *bb)
 	}
 	if (inst->opcode == OPCODE_IEnvStore) {
 	    for (j = i + 1; j < bb->insts.size; j++) {
-		lir_inst_t *inst2 = basicblock_get(bb, j);
+		lir_t inst2 = basicblock_get(bb, j);
 		if (inst2->opcode == OPCODE_IEnvStore) {
 		    break;
 		}
@@ -856,7 +865,7 @@ static int copy_propagation(worklist_t *list, basicblock_t *bb)
 	}
 	if (inst->opcode == OPCODE_IGetPropertyName) {
 	    for (j = i + 1; j < bb->insts.size; j++) {
-		lir_inst_t *inst2 = basicblock_get(bb, j);
+		lir_t inst2 = basicblock_get(bb, j);
 		if (inst2->opcode == OPCODE_IGetPropertyName) {
 		    IGetPropertyName *ir1 = (IGetPropertyName *)inst;
 		    IGetPropertyName *ir2 = (IGetPropertyName *)inst2;
@@ -879,9 +888,9 @@ static int copy_propagation(worklist_t *list, basicblock_t *bb)
 	    ISEQ iseq = ir1->ci->me->def->body.iseq;
 	    for (k = 0; k < (unsigned)ir1->argc - 1; k++) {
 		int index = iseq->local_size - k;
-		lir_inst_t *argN = ir1->argv[k + 1];
+		lir_t argN = ir1->argv[k + 1];
 		for (j = i + 1; j < bb->insts.size; j++) {
-		    lir_inst_t *inst2 = basicblock_get(bb, j);
+		    lir_t inst2 = basicblock_get(bb, j);
 		    if (inst2->opcode == OPCODE_IEnvLoad) {
 			IEnvLoad *ir2 = (IEnvLoad *)inst2;
 			if (ir2->Level == 0 && ir2->Index == index) {
@@ -902,9 +911,9 @@ static int copy_propagation(worklist_t *list, basicblock_t *bb)
     }
 
     while (!worklist_empty(&worklist)) {
-	lir_inst_t *inst = worklist_pop(&worklist);
+	lir_t inst = worklist_pop(&worklist);
 	remove_from_parent(inst);
-	remove_side_exit(list->rec, inst);
+	remove_side_exit(list->builder, inst);
 	modified++;
     }
     worklist_dispose(&worklist);
@@ -916,16 +925,16 @@ static int dead_store_elimination(worklist_t *list, basicblock_t *bb)
 {
     unsigned i, j;
     int modified = 0;
-    lir_builder_t *builder = list->rec;
+    lir_builder_t *builder = list->builder;
     worklist_t worklist;
     jit_list_init(&worklist.list);
-    worklist.rec = list->rec;
+    worklist.builder = list->builder;
 
     for (i = 1; i < bb->insts.size; i++) {
-	lir_inst_t *inst = basicblock_get(bb, i);
+	lir_t inst = basicblock_get(bb, i);
 	if (inst->opcode == OPCODE_IEnvStore) {
 	    for (j = i - 1; j != 0; j--) {
-		lir_inst_t *inst2 = basicblock_get(bb, j);
+		lir_t inst2 = basicblock_get(bb, j);
 		if (inst2->opcode == OPCODE_IEnvLoad) {
 		    break;
 		}
@@ -942,9 +951,9 @@ static int dead_store_elimination(worklist_t *list, basicblock_t *bb)
     }
 
     while (!worklist_empty(&worklist)) {
-	lir_inst_t *inst = worklist_pop(&worklist);
+	lir_t inst = worklist_pop(&worklist);
 	remove_from_parent(inst);
-	remove_side_exit(list->rec, inst);
+	remove_side_exit(list->builder, inst);
 	modified++;
     }
     worklist_dispose(&worklist);
@@ -956,13 +965,13 @@ static int instruction_aggregation(worklist_t *list, basicblock_t *bb)
 {
     unsigned i, j;
     int modified = 0;
-    lir_builder_t *builder = list->rec;
+    lir_builder_t *builder = list->builder;
     for (i = 1; i < bb->insts.size; i++) {
-	lir_inst_t *inst = basicblock_get(bb, i);
+	lir_t inst = basicblock_get(bb, i);
 	/* load inst */
 	if (inst->opcode == OPCODE_IEnvLoad) {
 	    for (j = i - 1; j != 0; j--) {
-		lir_inst_t *inst2 = basicblock_get(bb, j);
+		lir_t inst2 = basicblock_get(bb, j);
 		if (inst2->opcode == OPCODE_IEnvStore) {
 		    IEnvLoad *ir1 = (IEnvLoad *)inst;
 		    IEnvStore *ir2 = (IEnvStore *)inst2;
@@ -980,7 +989,7 @@ static int instruction_aggregation(worklist_t *list, basicblock_t *bb)
 	if (inst->opcode == OPCODE_IGetPropertyName) {
 	    IGetPropertyName *ir1 = (IGetPropertyName *)inst;
 	    for (j = i - 1; j != 0; j--) {
-		lir_inst_t *inst2 = basicblock_get(bb, j);
+		lir_t inst2 = basicblock_get(bb, j);
 		if (inst2->opcode == OPCODE_ISetPropertyName) {
 		    ISetPropertyName *ir2 = (ISetPropertyName *)inst2;
 		    if (ir1->Recv == ir2->Recv && ir1->Index == ir2->Index) {
@@ -1006,7 +1015,7 @@ static int instruction_aggregation(worklist_t *list, basicblock_t *bb)
 	if (inst->opcode == OPCODE_IGuardMethodRedefine) {
 	    IGuardMethodRedefine *ir1 = (IGuardMethodRedefine *)inst;
 	    for (j = i - 1; j != 0; j--) {
-		lir_inst_t *inst2 = basicblock_get(bb, j);
+		lir_t inst2 = basicblock_get(bb, j);
 		if (inst2->opcode == OPCODE_IGuardMethodRedefine) {
 		    IGuardMethodRedefine *ir2 = (IGuardMethodRedefine *)inst2;
 		    remove_side_exit(builder, inst);
@@ -1066,13 +1075,13 @@ static int remove_duplicated_guard(worklist_t *list, basicblock_t *bb)
     int modified = 0;
     worklist_t worklist;
     jit_list_init(&worklist.list);
-    worklist.rec = list->rec;
+    worklist.builder = list->builder;
 
     for (i = 1; i < bb->insts.size; i++) {
-	lir_inst_t *inst = basicblock_get(bb, i);
+	lir_t inst = basicblock_get(bb, i);
 	if (lir_is_guard(inst)) {
 	    for (j = i - 1; j != 0; j--) {
-		lir_inst_t *inst2 = basicblock_get(bb, j);
+		lir_t inst2 = basicblock_get(bb, j);
 		if (inst->opcode == inst2->opcode) {
 		    switch (inst->opcode) {
 			case OPCODE_IGuardTypeSymbol:
@@ -1113,9 +1122,9 @@ static int remove_duplicated_guard(worklist_t *list, basicblock_t *bb)
 	}
     }
     while (!worklist_empty(&worklist)) {
-	lir_inst_t *inst = worklist_pop(&worklist);
+	lir_t inst = worklist_pop(&worklist);
 	remove_from_parent(inst);
-	remove_side_exit(list->rec, inst);
+	remove_side_exit(list->builder, inst);
 	modified++;
     }
     worklist_dispose(&worklist);
@@ -1126,25 +1135,25 @@ static int remove_duplicated_guard(worklist_t *list, basicblock_t *bb)
 static lir_t trace_recorder_create_undef(lir_builder_t *builder, basicblock_t *bb)
 {
     lir_t reg;
-    basicblock_t *prev = lir_builder_cur_bb(rec->builder);
+    basicblock_t *prev = lir_builder_cur_bb(builder);
     unsigned inst_size = bb->insts.size;
-    rec->cur_bb = bb;
-    reg = Emit_Undef(rec);
+    lir_builder_set_bb(builder, bb);
+    reg = Emit_Undef(builder);
     if (inst_size > 0 && inst_size != basicblock_size(bb)) {
 	basicblock_swap_inst(bb, inst_size - 1, inst_size);
     }
-    lir_builder_set_cur_bb(rec->builder, prev);
+    lir_builder_set_bb(builder, prev);
     return reg;
 }
 
 static lir_t trace_recorder_create_load(lir_builder_t *builder, basicblock_t *bb, int idx, int lev)
 {
     lir_t reg;
-    basicblock_t *prev = lir_builder_cur_bb(rec->builder);
+    basicblock_t *prev = lir_builder_cur_bb(builder);
     unsigned inst_size = bb->insts.size;
-    rec->cur_bb = bb;
+    lir_builder_set_bb(builder, bb);
     if (idx == 0 && lev == 0) {
-	reg = Emit_LoadSelf(rec);
+	reg = Emit_LoadSelf(builder);
     }
     else {
 	reg = Emit_EnvLoad(builder, lev, idx);
@@ -1152,16 +1161,16 @@ static lir_t trace_recorder_create_load(lir_builder_t *builder, basicblock_t *bb
     if (inst_size > 0 && inst_size != basicblock_size(bb)) {
 	basicblock_swap_inst(bb, inst_size - 1, inst_size);
     }
-    lir_builder_set_cur_bb(rec->builder, prev);
+    lir_builder_set_bb(builder, prev);
     return reg;
 }
 
 static lir_t trace_recorder_create_phi(lir_builder_t *builder, basicblock_t *bb, int argc, lir_t *argv)
 {
     lir_t reg;
-    basicblock_t *prev = lir_builder_cur_bb(rec->builder);
+    basicblock_t *prev = lir_builder_cur_bb(builder);
     unsigned inst_size = bb->insts.size;
-    rec->cur_bb = bb;
+    lir_builder_set_bb(builder, bb);
     reg = Emit_Phi(builder, argc, argv);
     if (inst_size > 0 && inst_size != basicblock_size(bb)) {
 	lir_t first_inst = basicblock_get(bb, 0);
@@ -1170,14 +1179,14 @@ static lir_t trace_recorder_create_phi(lir_builder_t *builder, basicblock_t *bb,
 	}
 	basicblock_insert_inst_before(bb, first_inst, reg);
     }
-    lir_builder_set_cur_bb(rec->builder, prev);
+    lir_builder_set_bb(builder, prev);
     return reg;
 }
 
 static void trace_recorder_replace_phi_argument(lir_builder_t *builder, IPhi *phi, int idx, lir_t reg)
 {
     lir_inst_removeuser(phi->argv[idx], (lir_t)phi);
-    lir_inst_adduser(builder, reg, (lir_t)phi);
+    lir_inst_adduser(builder->mpool, reg, (lir_t)phi);
     phi->argv[idx] = reg;
 }
 
@@ -1188,27 +1197,27 @@ static void trace_recorder_replace_phi_argument(lir_builder_t *builder, IPhi *ph
 static int insert_phi(worklist_t *list, basicblock_t *bb)
 {
     unsigned i, j;
-    struct variable_table_iterator itr;
-    variable_table_t *cur_vt = bb->init_table;
-    variable_table_t *newvt;
-    lir_builder_t *builder = list->rec;
-    if (bb->preds.size == 1 /*&& variable_table_equal(prev->vt, cur_vt) */) {
+    struct local_var_table_iterator itr;
+    local_var_table_t *cur_vt = bb->init_table;
+    local_var_table_t *newvt;
+    lir_builder_t *builder = list->builder;
+    if (bb->preds.size == 1 /*&& local_var_table_equal(prev->vt, cur_vt) */) {
 	return 0;
     }
     for (i = 0; i < bb->preds.size; i++) {
 	basicblock_t *pred = basicblock_get_pred(bb, i);
-	variable_table_t *pred_vt = pred->last_table;
-	if (variable_table_depth(cur_vt) != variable_table_depth(pred_vt)) {
+	local_var_table_t *pred_vt = pred->last_table;
+	if (local_var_table_depth(cur_vt) != local_var_table_depth(pred_vt)) {
 	    return 0;
 	}
     }
-    newvt = variable_table_clone(&rec->mpool, cur_vt);
+    newvt = local_var_table_clone(builder->mpool, cur_vt);
     for (i = 0; i < bb->preds.size; i++) {
 	basicblock_t *pred = basicblock_get_pred(bb, i);
-	variable_table_t *pred_vt = pred->last_table;
-	variable_table_iterator_init(pred_vt, &itr, 0);
-	while (variable_table_each(&itr)) {
-	    if (variable_table_get(newvt, itr.idx, itr.lev, 0) == NULL) {
+	local_var_table_t *pred_vt = pred->last_table;
+	local_var_table_iterator_init(pred_vt, &itr, 0);
+	while (local_var_table_each(&itr)) {
+	    if (local_var_table_get(newvt, itr.idx, itr.lev, 0) == NULL) {
 		lir_t phi;
 		lir_t undef = trace_recorder_create_undef(builder, bb);
 		lir_t argv[bb->preds.size];
@@ -1217,23 +1226,23 @@ static int insert_phi(worklist_t *list, basicblock_t *bb)
 		}
 		phi = trace_recorder_create_phi(builder, bb, bb->preds.size, argv);
 		if (itr.idx == 0 && itr.lev == 0) {
-		    variable_table_set_self(newvt, 0, phi);
+		    local_var_table_set_self(newvt, 0, phi);
 		}
 		else {
-		    variable_table_set(newvt, itr.idx, itr.lev, 0, phi);
+		    local_var_table_set(newvt, itr.idx, itr.lev, 0, phi);
 		}
 	    }
 	}
     }
     for (i = 0; i < bb->preds.size; i++) {
 	basicblock_t *pred = basicblock_get_pred(bb, i);
-	variable_table_t *pred_vt = pred->last_table;
-	variable_table_iterator_init(newvt, &itr, 0);
-	while (variable_table_each(&itr)) {
+	local_var_table_t *pred_vt = pred->last_table;
+	local_var_table_iterator_init(newvt, &itr, 0);
+	while (local_var_table_each(&itr)) {
 	    IPhi *phi = (IPhi *)itr.val;
 	    lir_t reg = NULL;
 	    assert(itr.val->opcode == OPCODE_IPhi);
-	    reg = variable_table_get(pred_vt, itr.idx, itr.lev, 0);
+	    reg = local_var_table_get(pred_vt, itr.idx, itr.lev, 0);
 	    if (reg == NULL && itr.idx == 0 && itr.lev == 0) {
 		reg = pred_vt->self;
 	    }
@@ -1251,14 +1260,15 @@ static void loop_invariant_code_motion(lir_builder_t *builder, int move_block)
 {
     unsigned i, j, k;
     lir_t *ref = NULL;
-    for (j = 0; j < lir_builder_blocks(rec)->size; j++) {
-	basicblock_t *bb = lir_builder_get_block(rec->builder, j);
+    lir_func_t *func = builder->cur_func;
+    for (j = 0; j < jit_list_size(&func->bblist); j++) {
+	basicblock_t *bb = JIT_LIST_GET(basicblock_t *, &func->bblist, j);
 	for (i = 0; i < bb->insts.size; i++) {
-	    lir_inst_t *inst = basicblock_get(bb, i);
+	    lir_t inst = basicblock_get(bb, i);
 	    if (inst->opcode == OPCODE_IPhi) {
 		k = 0;
 		while ((ref = lir_inst_get_args(inst, k)) != NULL) {
-		    (*ref)->flag |= LIR_INST_VARIANT;
+		    lir_set(*ref, LIR_FLAG_INVARIANT);
 		    k++;
 		}
 	    }
@@ -1293,7 +1303,7 @@ static int simplify_cfg(worklist_t *list, basicblock_t *bb)
 	    basicblock_unlink(pred, bb);
 	    basicblock_unlink(bb, succ);
 	    basicblock_link(pred, succ);
-	    trace_recorder_remove_bb(list->rec, bb);
+	    lir_builder_remove_block(list->builder, bb);
 	    return 1;
 	}
     }
@@ -1308,7 +1318,7 @@ static int simplify_cfg(worklist_t *list, basicblock_t *bb)
 	}
 	if (succ->preds.size == 1) {
 	    unsigned i;
-	    variable_table_t *vt;
+	    local_var_table_t *vt;
 	    assert(inst->opcode == OPCODE_IJump);
 	    remove_from_parent(inst);
 	    for (i = 0; i < succ->insts.size; i++) {
@@ -1327,12 +1337,7 @@ static int simplify_cfg(worklist_t *list, basicblock_t *bb)
 	    succ->last_table = vt;
 
 	    /* copy stack_map */
-	    for (i = 0; i < succ->stack_map.size; i += 2) {
-		uintptr_t pc = jit_list_get(&succ->stack_map, i + 0);
-		uintptr_t stack = jit_list_get(&succ->stack_map, i + 1);
-		jit_list_add(&bb->stack_map, pc);
-		jit_list_add(&bb->stack_map, stack);
-	    }
+	    jit_list_copy(&bb->side_exits, &succ->side_exits);
 	    if (succ->base.flag & BB_PUSH_FRAME) {
 		bb->base.flag |= BB_PUSH_FRAME;
 	    }
@@ -1340,7 +1345,7 @@ static int simplify_cfg(worklist_t *list, basicblock_t *bb)
 		bb->base.flag |= BB_POP_FRAME;
 	    }
 	    succ->insts.size = 0;
-	    trace_recorder_remove_bb(list->rec, succ);
+	    lir_builder_remove_block(list->builder, succ);
 	    return 1;
 	}
     }
@@ -1351,7 +1356,7 @@ static int check_side_exit_reference_count(worklist_t *list, basicblock_t *bb)
 {
     unsigned i;
     for (i = 0; i < bb->insts.size; i++) {
-	lir_inst_t *inst = basicblock_get(bb, i);
+	lir_t inst = basicblock_get(bb, i);
 	if (lir_is_guard(inst) || inst->opcode == OPCODE_IExit) {
 	    update_side_exit_reference_count(inst);
 	}
@@ -1363,7 +1368,7 @@ static int check_basicblock_flag(worklist_t *list, basicblock_t *bb)
 {
     unsigned i;
     for (i = 0; i < bb->insts.size; i++) {
-	lir_inst_t *inst = basicblock_get(bb, i);
+	lir_t inst = basicblock_get(bb, i);
 	if (inst->opcode == OPCODE_IInvokeBlock || inst->opcode == OPCODE_IInvokeMethod || inst->opcode == OPCODE_IInvokeConstructor) {
 	    bb->base.flag |= BB_PUSH_FRAME;
 	}
@@ -1384,7 +1389,7 @@ static int check_basicblock_link(worklist_t *list, basicblock_t *bb)
     return 0;
 }
 
-static void trace_optimize(lir_builder_t *builder, trace_t *trace)
+static void trace_optimize(lir_builder_t *builder)
 {
     int modified = 1;
     JIT_PROFILE_ENTER("optimize");
@@ -1417,11 +1422,11 @@ static void trace_optimize(lir_builder_t *builder, trace_t *trace)
 	loop_invariant_code_motion(builder, LIR_OPT_BLOCK_GUARD_MOTION);
     }
     if (LIR_OPT_ESCAPE_ANALYSIS) {
-	// escape_analysis(rec);
-	// stack_allocation(rec);
+	// escape_analysis(builder);
+	// stack_allocation(builder);
     }
     if (LIR_OPT_RANGE_ANALYSIS) {
-	// range_analysis(rec);
+	// range_analysis(builder);
 	if (LIR_OPT_DEAD_CODE_ELIMINATION) {
 	    apply_worklist(builder, eliminate_dead_code);
 	}

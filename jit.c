@@ -500,4 +500,4 @@ void rujit_push_compile_queue(rb_thread_t *th, rb_control_frame_t *cfp, rb_metho
 #include "jit_args.h"
 #include "jit_record.h"
 #include "jit_codegen.h"
-// #include "jit_optimize.h"
+#include "jit_optimize.h"

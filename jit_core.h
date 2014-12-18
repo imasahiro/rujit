@@ -177,6 +177,16 @@ typedef struct jit_snapshot_t {
     jit_list_t insts;
 } jit_snapshot_t;
 
+static jit_snapshot_t *jit_snapshot_new(memory_pool_t *mpool, VALUE *pc)
+{
+    jit_snapshot_t *snapshot = MEMORY_POOL_ALLOC(jit_snapshot_t, mpool);
+    jit_list_init(&snapshot->insts);
+    snapshot->pc = pc;
+    snapshot->refc = 0;
+    snapshot->flag = 0;
+    return snapshot;
+}
+
 static void jit_snapshot_dump(jit_snapshot_t *snapshot)
 {
     unsigned i;
@@ -625,11 +635,18 @@ static basicblock_t *lir_builder_create_block(lir_builder_t *builder, VALUE *pc)
     return bb;
 }
 
+static void lir_builder_remove_block(lir_builder_t *builder, basicblock_t *bb)
+{
+    JIT_LIST_REMOVE(&builder->cur_func->bblist, bb);
+}
+
 static void dump_lir_func(lir_func_t *func);
+static void trace_optimize(lir_builder_t *builder);
 
 static void lir_builder_compile(rujit_t *jit, lir_builder_t *self)
 {
     self->mode = LIR_BUILDER_STATE_COMPILING;
+    trace_optimize(self);
     dump_lir_func(self->cur_func);
     TODO("");
     self->mode = LIR_BUILDER_STATE_NOP;
@@ -677,6 +694,7 @@ static lir_t lir_builder_add_inst(lir_builder_t *self, lir_t inst, size_t size)
     newinst = (lir_t)memory_pool_alloc(self->mpool, size);
     memcpy(newinst, inst, size);
     newinst->id = self->inst_size++;
+    lir_update_userinfo(self->mpool, newinst);
     basicblock_append(lir_builder_cur_bb(self), newinst);
     return newinst;
 }
@@ -705,10 +723,9 @@ static void lir_builder_push(lir_builder_t *builder, lir_t val)
 
 static jit_snapshot_t *lir_builder_take_snapshot(lir_builder_t *builder, VALUE *pc)
 {
-    jit_snapshot_t *snapshot = MEMORY_POOL_ALLOC(jit_snapshot_t, builder->mpool);
+    jit_snapshot_t *snapshot = jit_snapshot_new(builder->mpool, pc);
     unsigned i, id = 0;
     lir_t prev = NULL;
-    snapshot->pc = pc;
     for (i = 0; i < jit_list_size(&builder->stack_ops); i++) {
 	lir_t inst = JIT_LIST_GET(lir_t, &builder->stack_ops, i);
 	if (prev && lir_opcode(prev) == OPCODE_IStackPush) {

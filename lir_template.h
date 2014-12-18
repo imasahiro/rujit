@@ -263,4 +263,32 @@ static inline VALUE rb_jit_exec_IStringAdd(VALUE arg0, VALUE arg1)
 {
     return rb_str_append(arg0, arg1);
 }
+static inline VALUE rb_jit_exec_IMathSin(VALUE recv, VALUE obj)
+{
+    return DBL2NUM(sin(RFLOAT_VALUE(obj)));
+}
+static inline VALUE rb_jit_exec_IMathCos(VALUE recv, VALUE obj)
+{
+    return DBL2NUM(cos(RFLOAT_VALUE(obj)));
+}
+static inline VALUE rb_jit_exec_IMathTan(VALUE recv, VALUE obj)
+{
+    return DBL2NUM(tan(RFLOAT_VALUE(obj)));
+}
+static inline VALUE rb_jit_exec_IMathExp(VALUE recv, VALUE obj)
+{
+    return DBL2NUM(exp(RFLOAT_VALUE(obj)));
+}
+static inline VALUE rb_jit_exec_IMathSqrt(VALUE recv, VALUE obj)
+{
+    return DBL2NUM(sqrt(RFLOAT_VALUE(obj)));
+}
+static inline VALUE rb_jit_exec_IMathLog10(VALUE recv, VALUE obj)
+{
+    return DBL2NUM(log10(RFLOAT_VALUE(obj)));
+}
+static inline VALUE rb_jit_exec_IMathLog2(VALUE recv, VALUE obj)
+{
+    return DBL2NUM(log2(RFLOAT_VALUE(obj)));
+}
 #endif /* end of include guard */
