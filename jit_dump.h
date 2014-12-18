@@ -118,7 +118,6 @@ void dump_lir_func(lir_func_t *func)
 	fprintf(stderr, "func %p id=%u\n", func, func->id);
 	fprintf(stderr, "  bbsize=%u\n", jit_list_size(&func->bblist));
 
-	fprintf(stderr, "---------------\n");
 	for (i = 0; i < jit_list_size(&func->bblist); i++) {
 	    basicblock_t *bb = JIT_LIST_GET(basicblock_t *, &func->bblist, i);
 	    fprintf(stderr, "---------------\n");

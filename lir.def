@@ -19,7 +19,7 @@ GuardProperty            :use (Exit:VALUEPtr, R:lir_t, is_attr:int, id:long, ind
 GuardArraySize           :use (Exit:VALUEPtr, R:lir_t, size:long) :void
 GuardClassMethod         :use (Exit:VALUEPtr, R:lir_t, ci:CALL_INFO) :void
 GuardMethodCache         :use (Exit:VALUEPtr, R:lir_t, ci:CALL_INFO) :void
-GuardMethodRedefine           (Exit:VALUEPtr, klass_flag:int, bop:int) :void
+GuardMethodRedefine           (Exit:VALUEPtr, bop:int, klass_flag:int) :void
 
 # fixnum operator
 FixnumAdd         :def :use (LHS:lir_t, RHS:lir_t) :Fixnum
