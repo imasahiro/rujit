@@ -121,6 +121,8 @@ typedef struct jit_list {
 #define JIT_LIST_INDEXOF(LIST, VAL) jit_list_indexof(LIST, (uintptr_t)VAL)
 #define JIT_LIST_SET(LIST, IDX, VAL) jit_list_set(LIST, IDX, (uintptr_t)VAL)
 #define JIT_LIST_REMOVE(LIST, VAL) jit_list_remove(LIST, (uintptr_t)VAL)
+#define JIT_LIST_LAST(TYPE, LIST) ((TYPE)jit_list_last(LIST))
+#define JIT_LIST_POP(TYPE, LIST) ((TYPE)jit_list_pop(LIST))
 
 static void jit_list_init(jit_list_t *self)
 {
@@ -269,6 +271,20 @@ static int jit_list_equal(jit_list_t *l1, jit_list_t *l2)
     return 1;
 }
 
+static uintptr_t jit_list_last(jit_list_t *list)
+{
+    unsigned size = jit_list_size(list);
+    assert(size > 0);
+    return jit_list_get(list, size - 1);
+}
+
+static uintptr_t jit_list_pop(jit_list_t *list)
+{
+    unsigned size = jit_list_size(list);
+    assert(size > 0);
+    return jit_list_remove_idx(list, size - 1);
+}
+
 static void jit_list_delete(jit_list_t *self)
 {
     if (self->capacity) {
@@ -277,6 +293,7 @@ static void jit_list_delete(jit_list_t *self)
     }
     self->size = self->capacity = 0;
 }
+
 static void jit_list_free(jit_list_t *self)
 {
     jit_list_delete(self);

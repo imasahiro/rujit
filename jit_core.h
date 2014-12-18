@@ -27,6 +27,10 @@ static lir_t lir_inst_init(lir_t inst, size_t size, unsigned opcode)
     inst->opcode = opcode;
     return inst;
 }
+static unsigned lir_opcode(lir_t inst)
+{
+    return (unsigned)inst->opcode;
+}
 
 #define LIR_FLAG_UNTAGED (unsigned short)(1 << 0)
 #define LIR_FLAG_INVARIANT (unsigned short)(1 << 1)
@@ -184,9 +188,9 @@ static void jit_snapshot_dump(jit_snapshot_t *snapshot)
     for (i = 0; i < jit_list_size(&snapshot->insts); i++) {
 	lir_t inst = JIT_LIST_GET(lir_t, &snapshot->insts, i);
 	assert(inst != NULL);
-	if (lir_is_flag(inst, LIR_FLAG_OPERAND_STACK) == 0) {
-	    fprintf(stderr, " [%d] = %04d;", i, lir_getid(inst));
-	}
+	// if (lir_is_flag(inst, LIR_FLAG_OPERAND_STACK) == 0) {
+	fprintf(stderr, " [%d] = %04d;", i, lir_getid(inst));
+	// }
     }
 }
 
@@ -679,9 +683,8 @@ static lir_t lir_builder_add_inst(lir_builder_t *self, lir_t inst, size_t size)
 
 static lir_t lir_builder_pop(lir_builder_t *builder)
 {
-    unsigned size = jit_list_size(&builder->shadow_stack);
-    if (size != 0) {
-	lir_t val = (lir_t)jit_list_remove_idx(&builder->shadow_stack, size - 1);
+    if (jit_list_size(&builder->shadow_stack) != 0) {
+	lir_t val = JIT_LIST_POP(lir_t, &builder->shadow_stack);
 	lir_t inst = EmitIR(StackPop);
 	lir_set(inst, LIR_FLAG_OPERAND_STACK);
 	JIT_LIST_ADD(&builder->stack_ops, inst);
@@ -696,18 +699,30 @@ static void lir_builder_push(lir_builder_t *builder, lir_t val)
 {
     lir_t inst = EmitIR(StackPush, val);
     lir_set(inst, LIR_FLAG_OPERAND_STACK);
-    JIT_LIST_ADD(&builder->shadow_stack, val);
     JIT_LIST_ADD(&builder->stack_ops, inst);
+    JIT_LIST_ADD(&builder->shadow_stack, val);
 }
 
 static jit_snapshot_t *lir_builder_take_snapshot(lir_builder_t *builder, VALUE *pc)
 {
     jit_snapshot_t *snapshot = MEMORY_POOL_ALLOC(jit_snapshot_t, builder->mpool);
     unsigned i, id = 0;
+    lir_t prev = NULL;
     snapshot->pc = pc;
     for (i = 0; i < jit_list_size(&builder->stack_ops); i++) {
 	lir_t inst = JIT_LIST_GET(lir_t, &builder->stack_ops, i);
+	if (prev && lir_opcode(prev) == OPCODE_IStackPush) {
+	    if (lir_opcode(inst) == OPCODE_IStackPop) {
+		JIT_LIST_POP(lir_t, &snapshot->insts);
+		prev = NULL;
+		if (jit_list_size(&snapshot->insts) > 0) {
+		    prev = JIT_LIST_LAST(lir_t, &snapshot->insts);
+		}
+		continue;
+	    }
+	}
 	JIT_LIST_ADD(&snapshot->insts, inst);
+	prev = inst;
     }
     JIT_LIST_ADD(&lir_builder_cur_bb(builder)->side_exits, snapshot);
     return snapshot;
