@@ -35,13 +35,7 @@
 	return;                                                          \
     } while (0)
 
-typedef void jit_snapshot_t;
-
-static jit_snapshot_t *take_snapshot(lir_builder_t *builder, VALUE *pc)
-{
-    fprintf(stderr, "snapshot %p\n", pc);
-    return NULL;
-}
+#define take_snapshot(builder, pc) lir_builder_take_snapshot(builder, pc)
 
 /* util */
 static lir_t emit_envload(lir_builder_t *builder, int lev, int idx)
@@ -296,7 +290,9 @@ static void EmitJump(lir_builder_t *builder, VALUE *pc, int create_block)
 
 static void record_jump(lir_builder_t *builder, jit_event_t *e)
 {
-    TODO("");
+    OFFSET dst = (OFFSET)GET_OPERAND(1);
+    VALUE *jump_pc = e->pc + insn_len(BIN(branchif)) + dst;
+    EmitJump(builder, jump_pc, 1);
 }
 
 static void record_branchif(lir_builder_t *builder, jit_event_t *e)
@@ -327,7 +323,28 @@ static void record_branchif(lir_builder_t *builder, jit_event_t *e)
 
 static void record_branchunless(lir_builder_t *builder, jit_event_t *e)
 {
-    TODO("");
+    OFFSET dst = (OFFSET)GET_OPERAND(1);
+    lir_t Rval = _POP();
+    VALUE val = TOPN(0);
+    VALUE *next_pc = e->pc + insn_len(BIN(branchunless));
+    VALUE *jump_pc = next_pc + dst;
+    jit_event_t e2;
+    lir_t Rguard = NULL;
+    if (!RTEST(val)) {
+	e2.pc = jump_pc;
+	take_snapshot(builder, next_pc);
+	Rguard = EmitIR(GuardTypeNil, next_pc, Rval);
+	EmitJump(builder, jump_pc, 1);
+    }
+    else {
+	e2.pc = next_pc;
+	take_snapshot(builder, jump_pc);
+	Rguard = EmitIR(GuardTypeNonNil, jump_pc, Rval);
+	EmitJump(builder, next_pc, 1);
+    }
+    if (already_recorded_on_trace(&e2)) {
+	lir_set(Rguard, LIR_FLAG_TRACE_EXIT);
+    }
 }
 
 static void record_getinlinecache(lir_builder_t *builder, jit_event_t *e)

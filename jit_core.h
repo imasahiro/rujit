@@ -31,10 +31,16 @@ static lir_t lir_inst_init(lir_t inst, size_t size, unsigned opcode)
 #define LIR_FLAG_UNTAGED (unsigned short)(1 << 0)
 #define LIR_FLAG_INVARIANT (unsigned short)(1 << 1)
 #define LIR_FLAG_TRACE_EXIT (unsigned short)(1 << 2)
+#define LIR_FLAG_OPERAND_STACK (unsigned short)(1 << 3)
 
 static void lir_set(lir_t inst, unsigned short flag)
 {
     inst->flag |= flag;
+}
+
+static int lir_is_flag(lir_t inst, unsigned short flag)
+{
+    return (inst->flag & flag) == flag;
 }
 
 #define LIR_ID(VAL) lir_getid((lir_t)(VAL))
@@ -159,6 +165,32 @@ static void lir_update_userinfo(memory_pool_t *mpool, lir_t inst)
     }
 }
 /* lir_inst } */
+/* jit_snapshot_t { */
+typedef struct jit_snapshot_t {
+    VALUE *pc;
+    unsigned refc;
+    unsigned flag;
+    jit_list_t insts;
+} jit_snapshot_t;
+
+static void jit_snapshot_dump(jit_snapshot_t *snapshot)
+{
+    unsigned i;
+    fprintf(stderr, "side exit %u, refc=%u, pc=%p: ",
+            snapshot->flag,
+            snapshot->refc,
+            snapshot->pc);
+
+    for (i = 0; i < jit_list_size(&snapshot->insts); i++) {
+	lir_t inst = JIT_LIST_GET(lir_t, &snapshot->insts, i);
+	assert(inst != NULL);
+	if (lir_is_flag(inst, LIR_FLAG_OPERAND_STACK) == 0) {
+	    fprintf(stderr, " [%d] = %04d;", i, lir_getid(inst));
+	}
+    }
+}
+
+/* jit_snapshot_t } */
 
 /* variable_table { */
 typedef struct local_var_table_t {
@@ -354,7 +386,7 @@ struct lir_basicblock_t {
     jit_list_t insts;
     jit_list_t preds;
     jit_list_t succs;
-    jit_list_t side_exits; // n -> PC, n+1 -> reg2stack map
+    jit_list_t side_exits;
 };
 
 static basicblock_t *basicblock_new(memory_pool_t *mpool, VALUE *pc, int id)
@@ -590,6 +622,7 @@ static basicblock_t *lir_builder_create_block(lir_builder_t *builder, VALUE *pc)
 }
 
 static void dump_lir_func(lir_func_t *func);
+
 static void lir_builder_compile(rujit_t *jit, lir_builder_t *self)
 {
     self->mode = LIR_BUILDER_STATE_COMPILING;
@@ -650,6 +683,7 @@ static lir_t lir_builder_pop(lir_builder_t *builder)
     if (size != 0) {
 	lir_t val = (lir_t)jit_list_remove_idx(&builder->shadow_stack, size - 1);
 	lir_t inst = EmitIR(StackPop);
+	lir_set(inst, LIR_FLAG_OPERAND_STACK);
 	JIT_LIST_ADD(&builder->stack_ops, inst);
 	return val;
     }
@@ -660,20 +694,23 @@ static lir_t lir_builder_pop(lir_builder_t *builder)
 
 static void lir_builder_push(lir_builder_t *builder, lir_t val)
 {
+    lir_t inst = EmitIR(StackPush, val);
+    lir_set(inst, LIR_FLAG_OPERAND_STACK);
     JIT_LIST_ADD(&builder->shadow_stack, val);
-    JIT_LIST_ADD(&builder->stack_ops, EmitIR(StackPush, val));
+    JIT_LIST_ADD(&builder->stack_ops, inst);
 }
 
-static jit_snapshot_t *lir_builder_take_snapshot(lir_builder_t *builder)
+static jit_snapshot_t *lir_builder_take_snapshot(lir_builder_t *builder, VALUE *pc)
 {
     jit_snapshot_t *snapshot = MEMORY_POOL_ALLOC(jit_snapshot_t, builder->mpool);
     unsigned i, id = 0;
-    for (i = 0; i < jit_list_size(&builder->stack_ops); i += 2) {
-	long mode = JIT_LIST_GET(long, &builder->stack_ops, i);
-	lir_t inst = JIT_LIST_GET(lir_t, &builder->stack_ops, i + 1);
-	inst->parent = NULL;
-	snapshot->insts;
+    snapshot->pc = pc;
+    for (i = 0; i < jit_list_size(&builder->stack_ops); i++) {
+	lir_t inst = JIT_LIST_GET(lir_t, &builder->stack_ops, i);
+	JIT_LIST_ADD(&snapshot->insts, inst);
     }
+    JIT_LIST_ADD(&lir_builder_cur_bb(builder)->side_exits, snapshot);
+    return snapshot;
 }
 
 static lir_t lir_builder_get_const(lir_builder_t *builder, VALUE val)

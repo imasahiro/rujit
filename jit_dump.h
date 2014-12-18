@@ -92,32 +92,23 @@ static void dump_lir_block(basicblock_t *block)
 //
 //#define GET_STACK_MAP_ENTRY_SIZE(MAP) ((MAP)->size / 2)
 //#define GET_STACK_MAP_REAL_INDEX(IDX) ((IDX)*2)
-//static void dump_side_exit(trace_recorder_t *rec)
-//{
-//    if (DUMP_LIR > 0) {
-//	unsigned i, j, k;
-//	for (k = 0; k < rec->bblist.size; k++) {
-//	    basicblock_t *bb = JIT_LIST_GET(basicblock_t *, &rec->bblist, k);
-//	    for (j = 0; j < GET_STACK_MAP_ENTRY_SIZE(&bb->stack_map); j++) {
-//		unsigned idx = GET_STACK_MAP_REAL_INDEX(j);
-//		VALUE *pc = JIT_LIST_GET(VALUE *, &bb->stack_map, idx);
-//		regstack_t *stack = JIT_LIST_GET(regstack_t *, &bb->stack_map, idx + 1);
-//		fprintf(stderr, "side exit %s (size=%04d, refc=%ld): pc=%p: ",
-//		        trace_status_to_str(stack->flag),
-//		        stack->list.size - LIR_RESERVED_REGSTACK_SIZE,
-//		        stack->refc,
-//		        pc);
-//		for (i = 0; i < stack->list.size; i++) {
-//		    lir_t inst = JIT_LIST_GET(lir_t, &stack->list, i);
-//		    if (inst) {
-//			fprintf(stderr, "  [%d] = %04ld;", i - LIR_RESERVED_REGSTACK_SIZE, lir_getid(inst));
-//		    }
-//		}
-//		fprintf(stderr, "\n");
-//	    }
-//	}
-//    }
-//}
+
+static void dump_side_exit(lir_func_t *func)
+{
+    if (DUMP_LIR > 0) {
+	unsigned i, j, k;
+	jit_list_t *bblist = &func->bblist;
+	for (k = 0; k < jit_list_size(bblist); k++) {
+	    basicblock_t *bb = JIT_LIST_GET(basicblock_t *, bblist, k);
+	    for (j = 0; j < jit_list_size(&bb->side_exits); j++) {
+		jit_snapshot_t *snapshot;
+		snapshot = JIT_LIST_GET(jit_snapshot_t *, &bb->side_exits, j);
+		jit_snapshot_dump(snapshot);
+		fprintf(stderr, "\n");
+	    }
+	}
+    }
+}
 
 void dump_lir_func(lir_func_t *func)
 {
@@ -134,7 +125,7 @@ void dump_lir_func(lir_func_t *func)
 	    dump_lir_block(bb);
 	}
 	fprintf(stderr, "---------------\n");
-	//dump_side_exit(rec);
-	//fprintf(stderr, "---------------\n");
+	dump_side_exit(func);
+	fprintf(stderr, "---------------\n");
     }
 }

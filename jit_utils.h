@@ -230,6 +230,23 @@ static uintptr_t jit_list_remove(jit_list_t *self, uintptr_t val)
     return ret;
 }
 
+// static void jit_list_copy(jit_list_t *dst, jit_list_t *src)
+// {
+//     unsigned i;
+//     if (src == NULL || src == NULL) {
+// 	return;
+//     }
+//     if (src->size == 0) {
+// 	return;
+//     }
+//
+//     jit_list_ensure(dst, src->size);
+//     for (i = 0; i < src->size; i++) {
+// 	uintptr_t e = jit_list_get(src, i);
+// 	jit_list_add(dst, e);
+//     }
+// }
+
 static int jit_list_equal(jit_list_t *l1, jit_list_t *l2)
 {
     unsigned i;
