@@ -868,7 +868,7 @@ typedef struct rujit_backend_t {
     void *ctx;
     void (*f_init)(rujit_t *, struct rujit_backend_t *self);
     void (*f_delete)(rujit_t *, struct rujit_backend_t *self);
-    native_raw_func_t *(*f_compile)(rujit_t *, void *ctx, lir_func_t *func);
+    native_func_t *(*f_compile)(rujit_t *, void *ctx, lir_func_t *func);
     void (*f_unload)(rujit_t *, void *ctx, native_func_t *func);
 } rujit_backend_t;
 
@@ -880,7 +880,7 @@ static void dummy_delete(rujit_t *jit, struct rujit_backend_t *self)
 {
 }
 
-static native_raw_func_t *dummy_compile(rujit_t *jit, void *ctx, lir_func_t *func)
+static native_func_t *dummy_compile(rujit_t *jit, void *ctx, lir_func_t *func)
 {
     return NULL;
 }

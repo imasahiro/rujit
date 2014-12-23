@@ -1393,7 +1393,9 @@ static void trace_optimize(lir_builder_t *builder)
 {
     int modified = 1;
     JIT_PROFILE_ENTER("optimize");
-    apply_bb_worklist(builder, check_side_exit_reference_count);
+    if (LIR_OPT_REMOVE_DEAD_SIDE_EXIT) {
+	apply_bb_worklist(builder, check_side_exit_reference_count);
+    }
     apply_bb_worklist(builder, check_basicblock_link);
     apply_bb_worklist(builder, check_basicblock_flag);
     apply_bb_worklist(builder, remove_duplicated_guard);

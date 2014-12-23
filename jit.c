@@ -93,6 +93,10 @@ typedef struct native_func_t {
     unsigned refc;
     void *handler;
     native_raw_func_t code;
+#if JIT_DEBUG_TRACE
+    char *func_name;
+#endif
+    size_t invoked;
 } native_func_t;
 
 typedef struct lir_builder_t {

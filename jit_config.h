@@ -57,6 +57,7 @@
 #define LIR_OPT_ESCAPE_ANALYSIS 1
 #define LIR_OPT_RANGE_ANALYSIS 1
 #define LIR_OPT_BLOCK_GUARD_MOTION 1
+#define LIR_OPT_REMOVE_DEAD_SIDE_EXIT 1
 
 #define ENABLE_PROFILE_TRACE_JIT 1
 #endif /* end of include guard */
