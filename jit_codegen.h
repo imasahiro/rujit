@@ -110,6 +110,44 @@ static void cgen_delete(rujit_t *jit, struct rujit_backend_t *self)
     free(gen);
 }
 
+static int cgen_freeze(CGen *gen, lir_func_t *func)
+{
+    int success = 0;
+    buffer_flush(gen->fp, &gen->buf);
+    buffer_dispose(&gen->buf);
+    JIT_PROFILE_ENTER("nativecode generation");
+    if (gen->mode == FILE_MODE) {
+	char fpath[512] = {};
+	snprintf(fpath, 512, "/tmp/ruby_jit.%d.%d.c", getpid(), func->id);
+	cgen_setup_command(gen, gen->path, fpath);
+
+	if (JIT_DUMP_COMPILE_LOG > 1) {
+	    fprintf(stderr, "compiling c code : %s\n", gen->cmd);
+	}
+	if (JIT_DUMP_COMPILE_LOG > 0) {
+	    fprintf(stderr, "generated c-code is %s\n", gen->path);
+	}
+	fclose(gen->fp);
+#ifndef __STRICT_ANSI__
+	gen->fp = popen(gen->cmd, "w");
+#else
+#endif
+    }
+#ifndef __STRICT_ANSI__
+    success = pclose(gen->fp);
+#else
+    success = system(gen->cmd);
+#endif
+    JIT_PROFILE_LEAVE("nativecode generation", JIT_DUMP_COMPILE_LOG > 0);
+    if (gen->cmd_len > 0) {
+	gen->cmd_len = 0;
+	free(gen->cmd);
+	gen->cmd = NULL;
+    }
+    gen->fp = NULL;
+    return success;
+}
+
 static void cgen_compile2(CGen *gen, lir_builder_t *builder, lir_func_t *func);
 static int cgen_get_function(CGen *gen, lir_func_t *func, native_func_t *nfunc);
 
@@ -138,20 +176,21 @@ static native_func_t *cgen_compile(rujit_t *jit, void *ctx, lir_func_t *func)
 #endif
     {
 	char fpath[512] = {};
-	asm volatile("int3");
 	snprintf(fpath, 512, "/tmp/ruby_jit.%d.%d.c", getpid(), id);
 	gen->fp = fopen(fpath, "w");
     }
-
     snprintf(path, 128, "/tmp/ruby_jit.%d.%d.so", (unsigned)getpid(), id);
     gen->path = path;
 
     cgen_compile2(gen, &jit->builder, func);
-    nfunc = native_func_new(func);
-    asm volatile("int3");
-    if (cgen_get_function(gen, func, nfunc)) {
-	// compile finished
-	global_live_compiled_trace++;
+    JIT_PROFILE_LEAVE("c-code generation", JIT_DUMP_COMPILE_LOG > 0);
+
+    if (cgen_freeze(gen, func)) {
+	nfunc = native_func_new(func);
+	if (cgen_get_function(gen, func, nfunc)) {
+	    // compile finished
+	    global_live_compiled_trace++;
+	}
     }
     TODO("");
     return nfunc;
@@ -237,143 +276,75 @@ static int cgen_get_function(CGen *gen, lir_func_t *func, native_func_t *nfunc)
     cgen_printf(gen, "v%d = rb_jit_exec_" #OP "(v%d);\n", \
                 (VAL), lir_getid(ARG))
 
+#define EMIT_GUARD(GEN, CODE)                                                                                 \
+    do {                                                                                                      \
+	IGuardTypeFixnum *ir = (IGuardTypeFixnum *)Inst;                                                      \
+	uintptr_t exit_block_id = (uintptr_t)ir->Exit;                                                        \
+	cgen_printf(gen, "if(!(" CODE ")) {\n" "  goto L_exit%ld;\n" "}\n", lir_getid(ir->R), exit_block_id); \
+    } while (0)
+
 static void compile_inst(CGen *gen, lir_t Inst)
 {
     int Id = lir_getid(Inst);
     switch (lir_opcode(Inst)) {
 	case OPCODE_IGuardTypeSymbol: {
-	    IGuardTypeSymbol *ir = (IGuardTypeSymbol *)Inst;
-	    uintptr_t exit_block_id = (uintptr_t)ir->Exit;
-	    cgen_printf(gen, "if(!SYMBOL_P(v%d)) {\n"
-	                     "  goto L_exit%ld;\n"
-	                     "}\n",
-	                lir_getid(ir->R), exit_block_id);
+	    EMIT_GUARD(gen, "SYMBOL_P(v%d)");
 	    break;
 	}
 	case OPCODE_IGuardTypeFixnum: {
-	    IGuardTypeFixnum *ir = (IGuardTypeFixnum *)Inst;
-	    uintptr_t exit_block_id = (uintptr_t)ir->Exit;
-	    cgen_printf(gen, "if(!FIXNUM_P(v%d)) {\n"
-	                     "  goto L_exit%ld;\n"
-	                     "}\n",
-	                lir_getid(ir->R), exit_block_id);
+	    EMIT_GUARD(gen, "FIXNUM_P(v%d)");
 	    break;
 	}
 	case OPCODE_IGuardTypeBignum: {
-	    IGuardTypeBignum *ir = (IGuardTypeBignum *)Inst;
-	    uintptr_t exit_block_id = (uintptr_t)ir->Exit;
-	    cgen_printf(gen, "if(!RB_TYPE_P(v%d, T_BIGNUM)) {\n"
-	                     "  goto L_exit%ld;\n"
-	                     "}\n",
-	                lir_getid(ir->R), exit_block_id);
+	    EMIT_GUARD(gen, "RB_TYPE_P(v%d, T_BIGNUM)");
 	    break;
 	}
 	case OPCODE_IGuardTypeFloat: {
-	    IGuardTypeFloat *ir = (IGuardTypeFloat *)Inst;
-	    uintptr_t exit_block_id = (uintptr_t)ir->Exit;
-	    cgen_printf(gen, "if(!(RB_FLOAT_TYPE_P(v%d))) {\n"
-	                     "  goto L_exit%ld;\n"
-	                     "}\n",
-	                lir_getid(ir->R), exit_block_id);
+	    EMIT_GUARD(gen, "RB_FLOAT_TYPE_P(v%d)");
 	    break;
 	}
 	case OPCODE_IGuardTypeSpecialConst: {
-	    IGuardTypeSpecialConst *ir = (IGuardTypeSpecialConst *)Inst;
-	    uintptr_t exit_block_id = (uintptr_t)ir->Exit;
-	    cgen_printf(gen, "if(!SPECIAL_CONST_P(v%d)) {\n"
-	                     "  goto L_exit%ld;\n"
-	                     "}\n",
-	                lir_getid(ir->R), exit_block_id);
+	    EMIT_GUARD(gen, "SPECIAL_CONST_P(v%d)");
 	    break;
 	}
 	case OPCODE_IGuardTypeNonSpecialConst: {
-	    IGuardTypeSpecialConst *ir = (IGuardTypeSpecialConst *)Inst;
-	    uintptr_t exit_block_id = (uintptr_t)ir->Exit;
-	    cgen_printf(gen, "if(!!SPECIAL_CONST_P(v%d)) {\n"
-	                     "  goto L_exit%ld;\n"
-	                     "}\n",
-	                lir_getid(ir->R), exit_block_id);
+	    EMIT_GUARD(gen, "!SPECIAL_CONST_P(v%d)");
 	    break;
 	}
 	case OPCODE_IGuardTypeArray: {
-	    IGuardTypeArray *ir = (IGuardTypeArray *)Inst;
-	    uintptr_t exit_block_id = (uintptr_t)ir->Exit;
-	    cgen_printf(gen, "if(!(RBASIC_CLASS(v%d) == local_jit_runtime->cArray)) {\n"
-	                     "  goto L_exit%ld;\n"
-	                     "}\n",
-	                lir_getid(ir->R), exit_block_id);
+	    EMIT_GUARD(gen, "RBASIC_CLASS(v%d) == local_jit_runtime->cArray");
 	    break;
 	}
 	case OPCODE_IGuardTypeString: {
-	    IGuardTypeString *ir = (IGuardTypeString *)Inst;
-	    uintptr_t exit_block_id = (uintptr_t)ir->Exit;
-	    cgen_printf(gen, "if(!(RBASIC_CLASS(v%d) == local_jit_runtime->cString)) {\n"
-	                     "  goto L_exit%ld;\n"
-	                     "}\n",
-	                lir_getid(ir->R), exit_block_id);
+	    EMIT_GUARD(gen, "RBASIC_CLASS(v%d) == local_jit_runtime->cString");
 	    break;
 	}
 	case OPCODE_IGuardTypeHash: {
-	    IGuardTypeHash *ir = (IGuardTypeHash *)Inst;
-	    uintptr_t exit_block_id = (uintptr_t)ir->Exit;
-	    cgen_printf(gen, "if(!(RBASIC_CLASS(v%d) == local_jit_runtime->cHash)) {\n"
-	                     "  goto L_exit%ld;\n"
-	                     "}\n",
-	                lir_getid(ir->R), exit_block_id);
+	    EMIT_GUARD(gen, "RBASIC_CLASS(v%d) == local_jit_runtime->cHash");
 	    break;
 	}
 	case OPCODE_IGuardTypeRegexp: {
-	    IGuardTypeRegexp *ir = (IGuardTypeRegexp *)Inst;
-	    uintptr_t exit_block_id = (uintptr_t)ir->Exit;
-	    cgen_printf(gen, "if(!(RBASIC_CLASS(v%d) == local_jit_runtime->cRegexp)) {\n"
-	                     "  goto L_exit%ld;\n"
-	                     "}\n",
-	                lir_getid(ir->R), exit_block_id);
+	    EMIT_GUARD(gen, "RBASIC_CLASS(v%d) == local_jit_runtime->cRegexp");
 	    break;
 	}
 	case OPCODE_IGuardTypeTime: {
-	    IGuardTypeTime *ir = (IGuardTypeTime *)Inst;
-	    uintptr_t exit_block_id = (uintptr_t)ir->Exit;
-	    cgen_printf(gen, "if(!(RBASIC_CLASS(v%d) == local_jit_runtime->cTime)) {\n"
-	                     "  goto L_exit%ld;\n"
-	                     "}\n",
-	                lir_getid(ir->R), exit_block_id);
+	    EMIT_GUARD(gen, "RBASIC_CLASS(v%d) == local_jit_runtime->cTime");
 	    break;
 	}
 	case OPCODE_IGuardTypeMath: {
-	    IGuardTypeMath *ir = (IGuardTypeMath *)Inst;
-	    uintptr_t exit_block_id = (uintptr_t)ir->Exit;
-	    cgen_printf(gen, "if(!(RBASIC_CLASS(v%d) == local_jit_runtime->cMath)) {\n"
-	                     "  goto L_exit%ld;\n"
-	                     "}\n",
-	                lir_getid(ir->R), exit_block_id);
+	    EMIT_GUARD(gen, "RBASIC_CLASS(v%d) == local_jit_runtime->cMath");
 	    break;
 	}
 	case OPCODE_IGuardTypeObject: {
-	    IGuardTypeObject *ir = (IGuardTypeObject *)Inst;
-	    uintptr_t exit_block_id = (uintptr_t)ir->Exit;
-	    cgen_printf(gen, "if(!(RB_TYPE_P(v%d, T_OBJECT))) {\n"
-	                     "  goto L_exit%ld;\n"
-	                     "}\n",
-	                lir_getid(ir->R), exit_block_id);
+	    EMIT_GUARD(gen, "RB_TYPE_P(v%d, T_OBJECT)");
 	    break;
 	}
 	case OPCODE_IGuardTypeNil: {
-	    IGuardTypeNil *ir = (IGuardTypeNil *)Inst;
-	    uintptr_t exit_block_id = (uintptr_t)ir->Exit;
-	    cgen_printf(gen, "if(!RTEST(v%d)) {\n"
-	                     "  goto L_exit%ld;\n"
-	                     "}\n",
-	                lir_getid(ir->R), exit_block_id);
+	    EMIT_GUARD(gen, "RTEST(v%d)");
 	    break;
 	}
 	case OPCODE_IGuardTypeNonNil: {
-	    IGuardTypeNonNil *ir = (IGuardTypeNonNil *)Inst;
-	    uintptr_t exit_block_id = (uintptr_t)ir->Exit;
-	    cgen_printf(gen, "if(!!RTEST(v%d)) {\n"
-	                     "  goto L_exit%ld;\n"
-	                     "}\n",
-	                lir_getid(ir->R), exit_block_id);
+	    EMIT_GUARD(gen, "!RTEST(v%d)");
 	    break;
 	}
 	case OPCODE_IGuardBlockEqual: {
@@ -414,7 +385,6 @@ static void compile_inst(CGen *gen, lir_t Inst)
 
 	    break;
 	}
-
 	case OPCODE_IGuardClassMethod: {
 	    IGuardClassMethod *ir = (IGuardClassMethod *)Inst;
 	    uintptr_t exit_block_id = (uintptr_t)ir->Exit;
@@ -1365,7 +1335,7 @@ static void prepare_side_exit(CGen *gen, lir_builder_t *builder, lir_func_t *fun
 		    snapshot = NULL;
 		}
 		assert(snapshot != NULL);
-		((IExit *)inst)->Exit = (VALUE *)snapshot;
+		((IExit *)inst)->Exit = (VALUE *)(uintptr_t)k;
 	    }
 	}
     }
