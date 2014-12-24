@@ -8,6 +8,14 @@
 
 **********************************************************************/
 
+typedef struct rujit_backend_t {
+    void *ctx;
+    void (*f_init)(rujit_t *, struct rujit_backend_t *self);
+    void (*f_delete)(rujit_t *, struct rujit_backend_t *self);
+    native_func_t *(*f_compile)(rujit_t *, void *ctx, struct lir_func_t *func);
+    void (*f_unload)(rujit_t *, void *ctx, native_func_t *func);
+} rujit_backend_t;
+
 /* lir_inst {*/
 typedef struct lir_basicblock_t basicblock_t;
 
@@ -573,6 +581,22 @@ static void lir_func_delete(lir_func_t *func)
     jit_list_delete(&func->bblist);
     jit_list_delete(&func->side_exits);
 }
+
+static void lir_func_collect_side_exits(lir_func_t *func)
+{
+    unsigned i, j;
+    for (j = 0; j < jit_list_size(&func->bblist); j++) {
+	basicblock_t *bb = JIT_LIST_GET(basicblock_t *, &func->bblist, j);
+	for (i = 0; i < jit_list_size(&bb->side_exits); i++) {
+	    jit_snapshot_t *snapshot;
+	    snapshot = JIT_LIST_GET(jit_snapshot_t *, &bb->side_exits, i);
+	    if (JIT_LIST_INDEXOF(&func->side_exits, snapshot) == -1) {
+		JIT_LIST_ADD(&func->side_exits, snapshot);
+	    }
+	}
+    }
+}
+
 /* } lir_func */
 
 /* lir_builder_t {*/
@@ -647,8 +671,8 @@ static void lir_builder_compile(rujit_t *jit, lir_builder_t *self)
 {
     self->mode = LIR_BUILDER_STATE_COMPILING;
     trace_optimize(self);
-    dump_lir_func(self->cur_func);
-    TODO("");
+    lir_func_collect_side_exits(self->cur_func);
+    jit->backend->f_compile(jit, jit->backend->ctx, self->cur_func);
     self->mode = LIR_BUILDER_STATE_NOP;
 }
 
@@ -864,14 +888,6 @@ static void lir_builder_dispose(lir_builder_t *self)
 
 /* native_func_t {*/
 
-typedef struct rujit_backend_t {
-    void *ctx;
-    void (*f_init)(rujit_t *, struct rujit_backend_t *self);
-    void (*f_delete)(rujit_t *, struct rujit_backend_t *self);
-    native_func_t *(*f_compile)(rujit_t *, void *ctx, lir_func_t *func);
-    void (*f_unload)(rujit_t *, void *ctx, native_func_t *func);
-} rujit_backend_t;
-
 static void dummy_init(rujit_t *jit, struct rujit_backend_t *self)
 {
 }
@@ -902,16 +918,17 @@ static rujit_backend_t backend_dummy = {
 #define RC_INIT(O) ((O)->refc = 1)
 #define RC_CHECK(O) ((O)->refc == 0)
 
-// static native_func_t *native_func_new(lir_func_t *origin)
-// {
-//     native_func_t *func = (native_func_t *)malloc(sizeof(native_func_t));
-//     func->flag = 0;
-//     RC_INIT(func);
-//     func->handler = NULL;
-//     func->code = NULL;
-//     func->origin = origin;
-//     return func;
-// }
+static native_func_t *native_func_new(lir_func_t *origin)
+{
+    native_func_t *func = (native_func_t *)malloc(sizeof(native_func_t));
+    memset(func, 0, sizeof(native_func_t));
+    func->flag = 0;
+    RC_INIT(func);
+    func->handler = NULL;
+    func->code = NULL;
+    func->origin = origin;
+    return func;
+}
 
 static void native_func_invalidate(native_func_t *func)
 {

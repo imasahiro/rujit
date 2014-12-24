@@ -92,6 +92,7 @@ typedef struct native_func_t {
     unsigned flag;
     unsigned refc;
     void *handler;
+    struct lir_func_t *origin;
     native_raw_func_t code;
 #if JIT_DEBUG_TRACE
     char *func_name;
@@ -258,6 +259,11 @@ static const rb_data_type_t jit_data_type = {
 };
 
 static lir_builder_t *lir_builder_init(lir_builder_t *, memory_pool_t *);
+static void jit_backend_init_cgen(rujit_t *jit);
+static void jit_backend_init_llvm(rujit_t *jit)
+{
+    assert(0 && "unreachable");
+}
 
 static rujit_t *jit_new()
 {
@@ -266,6 +272,14 @@ static rujit_t *jit_new()
     jit->main_thread = GET_THREAD();
     memory_pool_init(&jit->mpool);
     lir_builder_init(&jit->builder, &jit->mpool);
+    jit->backend = &backend_dummy;
+    if (USE_CGEN) {
+	jit_backend_init_cgen(jit);
+    }
+    else if (USE_LLVM) {
+	jit_backend_init_llvm(jit);
+    }
+    jit->backend->f_init(jit, jit->backend);
     native_func_manager_init(&jit->manager);
     if (RTEST(rb_cJit)) {
 	TODO("rb_cJit");
@@ -278,6 +292,7 @@ static rujit_t *jit_new()
 static void jit_delete(rujit_t *jit)
 {
     jit_profile_dump();
+    jit->backend->f_delete(jit, jit->backend);
     free(jit);
 }
 

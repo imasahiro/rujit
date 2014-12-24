@@ -119,6 +119,8 @@ static native_func_t *cgen_compile(rujit_t *jit, void *ctx, lir_func_t *func)
     char path[128] = {};
     int id = rujit_check_compiled_code_size(jit, ctx, func->id);
     native_func_t *nfunc = NULL;
+
+    dump_lir_func(func);
 #if 0 && !defined(__STRICT_ANSI__)
     gen->mode = PROCESS_MODE;
 #else
@@ -136,18 +138,22 @@ static native_func_t *cgen_compile(rujit_t *jit, void *ctx, lir_func_t *func)
 #endif
     {
 	char fpath[512] = {};
+	asm volatile("int3");
 	snprintf(fpath, 512, "/tmp/ruby_jit.%d.%d.c", getpid(), id);
 	gen->fp = fopen(fpath, "w");
     }
-    gen->path = path;
 
     snprintf(path, 128, "/tmp/ruby_jit.%d.%d.so", (unsigned)getpid(), id);
+    gen->path = path;
 
     cgen_compile2(gen, &jit->builder, func);
+    nfunc = native_func_new(func);
+    asm volatile("int3");
     if (cgen_get_function(gen, func, nfunc)) {
 	// compile finished
 	global_live_compiled_trace++;
     }
+    TODO("");
     return nfunc;
 }
 
@@ -1345,8 +1351,8 @@ static void prepare_side_exit(CGen *gen, lir_builder_t *builder, lir_func_t *fun
     for (i = 0; i < jit_list_size(&func->bblist); i++) {
 	basicblock_t *bb = JIT_LIST_GET(basicblock_t *, &func->bblist, i);
 	lir_builder_set_bb(builder, bb);
-	for (j = 0; j < bb->insts.size; j++) {
-	    lir_t inst = (lir_t)bb->insts.list[j];
+	for (j = 0; j < jit_list_size(&bb->insts); j++) {
+	    lir_t inst = JIT_LIST_GET(lir_t, &bb->insts, j);
 	    if (lir_is_guard(inst) || inst->opcode == OPCODE_IExit) {
 		int exit_id;
 		VALUE *pc = ((IExit *)inst)->Exit;
@@ -1477,4 +1483,17 @@ static void cgen_compile2(CGen *gen, lir_builder_t *builder, lir_func_t *func)
 
     compile_sideexit(gen, builder, func);
     compile_epilogue(gen, builder);
+}
+
+static rujit_backend_t backend_cgen = {
+    NULL,
+    cgen_init,
+    cgen_delete,
+    cgen_compile,
+    cgen_unload
+};
+
+static void jit_backend_init_cgen(rujit_t *jit)
+{
+    jit->backend = &backend_cgen;
 }
