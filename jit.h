@@ -150,20 +150,18 @@ enum JIT_BOP {
     JIT_BOP_EXT_LAST_
 };
 
-typedef struct trace_side_exit_handler trace_side_exit_handler_t;
-
 typedef enum trace_exit_staus {
     TRACE_EXIT_ERROR = -1,
     TRACE_EXIT_SUCCESS = 0,
     TRACE_EXIT_SIDE_EXIT
 } trace_exit_status_t;
 
-struct trace_side_exit_handler {
+typedef struct trace_side_exit_handler {
     struct jit_trace *this_trace;
     struct jit_trace *child_trace;
     VALUE *exit_pc;
     trace_exit_status_t exit_status;
-};
+} trace_side_exit_handler_t;
 
 #ifdef JIT_HOST
 #define JIT_RUNTIME (&jit_runtime)

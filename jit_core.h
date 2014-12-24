@@ -669,10 +669,13 @@ static void trace_optimize(lir_builder_t *builder);
 
 static void lir_builder_compile(rujit_t *jit, lir_builder_t *self)
 {
+    native_func_t *nfunc;
     self->mode = LIR_BUILDER_STATE_COMPILING;
     trace_optimize(self);
     lir_func_collect_side_exits(self->cur_func);
-    jit->backend->f_compile(jit, jit->backend->ctx, self->cur_func);
+    nfunc = jit->backend->f_compile(jit, jit->backend->ctx, self->cur_func);
+    assert(nfunc != NULL);
+    self->cur_trace->native_func = nfunc;
     self->mode = LIR_BUILDER_STATE_NOP;
 }
 
@@ -689,16 +692,18 @@ static void lir_builder_abort(lir_builder_t *self)
 
 static lir_t Emit_Jump(lir_builder_t *builder, basicblock_t *bb);
 
-static void lir_builder_reset(lir_builder_t *self, lir_func_t **func, VALUE *pc)
+static void lir_builder_reset(lir_builder_t *self, jit_trace_t *trace)
 {
     basicblock_t *entry_bb, *cur_bb;
+    lir_func_t *func = trace->lir_func;
+    VALUE *pc = trace->start_pc;
+
     assert(self->mode == LIR_BUILDER_STATE_NOP);
-    assert(*func == NULL);
-    *func = lir_func_new(self->mpool);
-    self->cur_func = *func;
+    assert(func == NULL);
+    self->cur_trace = trace;
+    self->cur_func = trace->lir_func = func = lir_func_new(self->mpool);
     hashmap_dispose(&self->const_pool, NULL);
     hashmap_init(&self->const_pool, 4);
-
     jit_list_clear(&self->shadow_stack);
     jit_list_clear(&self->stack_ops);
 

@@ -105,6 +105,7 @@ typedef struct lir_builder_t {
     memory_pool_t *mpool;
     struct lir_func_t *cur_func;
     struct lir_basicblock_t *cur_bb;
+    struct jit_trace_t *cur_trace;
     jit_list_t shadow_stack;
     jit_list_t stack_ops;
     hashmap_t const_pool;
@@ -504,7 +505,7 @@ int rujit_invoke_or_make_trace(rb_thread_t *th, rb_control_frame_t *reg_cfp, VAL
 	//    return 0;
 	//}
 	start_recording();
-	lir_builder_reset(&jit->builder, &trace->lir_func, trace->start_pc);
+	lir_builder_reset(&jit->builder, trace);
     }
     return 0;
 }

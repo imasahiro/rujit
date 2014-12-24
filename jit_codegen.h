@@ -185,14 +185,13 @@ static native_func_t *cgen_compile(rujit_t *jit, void *ctx, lir_func_t *func)
     cgen_compile2(gen, &jit->builder, func);
     JIT_PROFILE_LEAVE("c-code generation", JIT_DUMP_COMPILE_LOG > 0);
 
-    if (cgen_freeze(gen, func)) {
+    if (cgen_freeze(gen, func) == 0) {
 	nfunc = native_func_new(func);
 	if (cgen_get_function(gen, func, nfunc)) {
 	    // compile finished
 	    global_live_compiled_trace++;
 	}
     }
-    TODO("");
     return nfunc;
 }
 
@@ -1418,8 +1417,9 @@ static void compile_sideexit(CGen *gen, lir_builder_t *builder, lir_func_t *func
 	    cgen_printf(gen, "fprintf(stderr,\"%%s %%04d exit%u : pc=%p\\n\", __FILE__, __LINE__);\n", j, snapshot->pc);
 	    for (i = 0; i < jit_list_size(&snapshot->insts); i++) {
 		lir_t inst = JIT_LIST_GET(lir_t, &snapshot->insts, i);
-		if (inst) {
-		    assert_not_undef(gen, inst);
+		if (inst && lir_opcode(inst) == OPCODE_IStackPush) {
+		    IStackPush *sp = (IStackPush *)inst;
+		    assert_not_undef(gen, sp->Val);
 		}
 	    }
 	}
