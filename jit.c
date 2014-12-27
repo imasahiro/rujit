@@ -86,7 +86,7 @@ typedef struct jit_trace_t {
     struct lir_func_t *lir_func;
 } jit_trace_t;
 
-typedef VALUE *(*native_raw_func_t)(rb_thread_t *, rb_control_frame_t *);
+typedef trace_side_exit_handler_t *(*native_raw_func_t)(rb_thread_t *, rb_control_frame_t *);
 
 typedef struct native_func_t {
     unsigned flag;
@@ -314,15 +314,69 @@ static jit_trace_t *jit_alloc_trace(rujit_t *jit, jit_event_t *e, jit_trace_t *p
     return trace;
 }
 
-static int trace_invoke(rujit_t *jit, jit_event_t *e, jit_trace_t *trace)
-{
-    TODO("");
-    return 0;
-}
-
 static int trace_is_compiled(jit_trace_t *trace)
 {
     return trace && trace->native_func != NULL;
+}
+
+static int trace_invoke(rujit_t *jit, jit_event_t *e, jit_trace_t *trace)
+{
+    native_func_t *nfunc = trace->native_func;
+    trace_side_exit_handler_t *hdl;
+    rb_thread_t *th = e->th;
+    rb_control_frame_t *cfp;
+L_head:
+    cfp = th->cfp;
+    JIT_PROFILE_COUNT(invoke_trace_invoke_enter);
+    RC_INC(nfunc);
+    hdl = nfunc->code(e->th, cfp);
+#ifdef ENABLE_PROFILE_TRACE_JIT
+    nfunc->invoked++;
+#endif
+    RC_DEC(nfunc);
+    if (RC_CHECK(nfunc) == 0 && nfunc->code == NULL) {
+	VALUE *pc = hdl->exit_pc;
+	native_func_delete(nfunc);
+	trace->native_func = NULL;
+	th->cfp->pc = pc;
+	return 1;
+    }
+    if (JIT_DEBUG_VERBOSE > 0 || JIT_LOG_SIDE_EXIT > 0) {
+	fprintf(stderr, "trace %s for %p is exit from %p, cfp=%p\n",
+#if JIT_DEBUG_TRACE
+	        (nfunc->func_name) ? nfunc->func_name : "",
+#else
+	        "",
+#endif
+	        e->pc, hdl->exit_pc, th->cfp);
+    }
+    switch (hdl->exit_status) {
+	case TRACE_EXIT_SIDE_EXIT:
+	    JIT_PROFILE_COUNT(invoke_trace_side_exit);
+	    if (JIT_ENABLE_LINK_TO_CHILD_TRACE) {
+		JIT_PROFILE_COUNT(invoke_trace_child1);
+		if (trace_is_compiled(hdl->child_trace)) {
+		    trace = hdl->child_trace;
+		    goto L_head;
+		}
+		mark_trace_header(hdl, th);
+		JIT_PROFILE_COUNT(invoke_trace_child2);
+		if (trace_is_compiled(hdl->child_trace)) {
+		    trace = hdl->child_trace;
+		    goto L_head;
+		}
+	    }
+	    break;
+	case TRACE_EXIT_SUCCESS:
+	    JIT_PROFILE_COUNT(invoke_trace_success);
+	    break;
+	case TRACE_EXIT_ERROR:
+	    assert(0 && "unreachable");
+	    break;
+    }
+    th->cfp->pc = hdl->exit_pc;
+
+    return 1;
 }
 
 void Init_rawjit(struct rb_vm_global_state *global_state_ptr)

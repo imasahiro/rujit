@@ -157,8 +157,8 @@ typedef enum trace_exit_staus {
 } trace_exit_status_t;
 
 typedef struct trace_side_exit_handler {
-    struct jit_trace *this_trace;
-    struct jit_trace *child_trace;
+    struct jit_trace_t *this_trace;
+    struct jit_trace_t *child_trace;
     VALUE *exit_pc;
     trace_exit_status_t exit_status;
 } trace_side_exit_handler_t;
