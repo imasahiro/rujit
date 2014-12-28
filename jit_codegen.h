@@ -1364,7 +1364,7 @@ static void compile_prologue(CGen *gen, lir_builder_t *builder, lir_func_t *func
     prepare_side_exit(gen, builder, func);
 
     cgen_printf(gen,
-                "void init_ruby_jit_%d(const jit_runtime_t *ctx, struct jit_trace *t)"
+                "void init_ruby_jit_%d(const jit_runtime_t *ctx, struct jit_trace_t *t)"
                 "{\n"
                 "  local_jit_runtime = ctx;\n"
                 "  (void) make_no_method_exception;\n",

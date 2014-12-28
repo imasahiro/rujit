@@ -82,6 +82,7 @@ typedef struct jit_trace_t {
     VALUE *start_pc;
     VALUE *last_pc;
     long counter;
+    long failed_counter;
     struct native_func_t *native_func;
     struct lir_func_t *lir_func;
 } jit_trace_t;
@@ -297,6 +298,44 @@ static void jit_delete(rujit_t *jit)
     free(jit);
 }
 
+int rujit_record_trace_mode = 0;
+
+static int is_recording()
+{
+    return rujit_record_trace_mode == 1;
+}
+
+static void start_recording()
+{
+    rujit_record_trace_mode = 1;
+    if (JIT_DEBUG_VERBOSE) {
+	fprintf(stderr, "start recording\n");
+    }
+}
+
+static void stop_recording()
+{
+    rujit_record_trace_mode = 0;
+    if (JIT_DEBUG_VERBOSE) {
+	fprintf(stderr, "stop recording\n");
+    }
+}
+
+static jit_event_t *jit_event_init(jit_event_t *e, rujit_t *jit, rb_thread_t *th, rb_control_frame_t *cfp, VALUE *pc)
+{
+    ISEQ iseq = cfp->iseq;
+    VALUE *iseq_orig = rb_iseq_original_iseq(iseq);
+    long offset = pc - iseq->iseq_encoded;
+    int opcode = (int)iseq_orig[offset];
+    e->th = th;
+    e->cfp = cfp;
+    e->pc = pc;
+    e->opcode = opcode;
+    e->reason = TRACE_ERROR_OK;
+    jit->current_event = e;
+    return e;
+}
+
 static jit_trace_t *jit_find_trace(rujit_t *jit, jit_event_t *e)
 {
     return native_func_manager_find_trace(&jit->manager, e->pc);
@@ -308,6 +347,7 @@ static jit_trace_t *jit_alloc_trace(rujit_t *jit, jit_event_t *e, jit_trace_t *p
     trace->start_pc = e->pc;
     trace->last_pc = NULL;
     trace->counter = 0;
+    trace->failed_counter = 0;
     trace->native_func = NULL;
     trace->lir_func = NULL;
     native_func_manager_add_trace(&jit->manager, trace);
@@ -317,6 +357,30 @@ static jit_trace_t *jit_alloc_trace(rujit_t *jit, jit_event_t *e, jit_trace_t *p
 static int trace_is_compiled(jit_trace_t *trace)
 {
     return trace && trace->native_func != NULL;
+}
+
+static void mark_trace_header(trace_side_exit_handler_t *handler, rb_thread_t *th)
+{
+    rb_control_frame_t *reg_cfp = th->cfp;
+    rujit_t *jit = current_jit;
+    jit_trace_t *trace = NULL;
+    jit_event_t ebuf, *e;
+    e = jit_event_init(&ebuf, jit, th, reg_cfp, handler->exit_pc);
+    if (handler->child_trace) {
+	trace = handler->child_trace;
+    }
+    else if ((trace = jit_find_trace(jit, e)) == NULL) {
+	trace = jit_alloc_trace(jit, e, handler->this_trace);
+    }
+    handler->child_trace = trace;
+    if (trace->failed_counter > BLACKLIST_TRACE_THRESHOLD) {
+	TODO("");
+	// add_blacklist_trace(jit, trace);
+    }
+    else if (!trace_is_compiled(trace)) {
+	lir_builder_reset(&jit->builder, trace);
+	start_recording();
+    }
 }
 
 static int trace_invoke(rujit_t *jit, jit_event_t *e, jit_trace_t *trace)
@@ -396,44 +460,6 @@ void Destruct_rawjit()
     if (current_jit) {
 	jit_delete(current_jit);
 	current_jit = NULL;
-    }
-}
-
-static jit_event_t *jit_event_init(jit_event_t *e, rujit_t *jit, rb_thread_t *th, rb_control_frame_t *cfp, VALUE *pc)
-{
-    ISEQ iseq = cfp->iseq;
-    VALUE *iseq_orig = rb_iseq_original_iseq(iseq);
-    long offset = pc - iseq->iseq_encoded;
-    int opcode = (int)iseq_orig[offset];
-    e->th = th;
-    e->cfp = cfp;
-    e->pc = pc;
-    e->opcode = opcode;
-    e->reason = TRACE_ERROR_OK;
-    jit->current_event = e;
-    return e;
-}
-
-int rujit_record_trace_mode = 0;
-
-static int is_recording()
-{
-    return rujit_record_trace_mode == 1;
-}
-
-static void start_recording()
-{
-    rujit_record_trace_mode = 1;
-    if (JIT_DEBUG_VERBOSE) {
-	fprintf(stderr, "start recording\n");
-    }
-}
-
-static void stop_recording()
-{
-    rujit_record_trace_mode = 0;
-    if (JIT_DEBUG_VERBOSE) {
-	fprintf(stderr, "stop recording\n");
     }
 }
 
