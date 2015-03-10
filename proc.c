@@ -40,6 +40,13 @@ static int method_min_max_arity(VALUE, int *max);
 #define IS_METHOD_PROC_NODE(node) (nd_type(node) == NODE_IFUNC && (node)->nd_cfnc == bmcall)
 
 static void
+proc_free(void *ptr)
+{
+    extern void rb_jit_notify_proc_freed(void *ptr);
+    rb_jit_notify_proc_freed(ptr);
+}
+
+static void
 proc_mark(void *ptr)
 {
     rb_proc_t *proc = ptr;
@@ -64,7 +71,7 @@ static const rb_data_type_t proc_data_type = {
     "proc",
     {
 	proc_mark,
-	RUBY_TYPED_DEFAULT_FREE,
+	proc_free,
 	proc_memsize,
     },
     0, 0, RUBY_TYPED_FREE_IMMEDIATELY

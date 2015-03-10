@@ -100,6 +100,7 @@ COMMONOBJS    = array.$(OBJEXT) \
 		vm_dump.$(OBJEXT) \
 		vm_backtrace.$(OBJEXT) \
 		vm_trace.$(OBJEXT) \
+		jit.$(OBJEXT) \
 		thread.$(OBJEXT) \
 		cont.$(OBJEXT) \
 		$(DTRACE_OBJ) \
@@ -847,6 +848,31 @@ $(srcdir)/ext/rbconfig/sizeof/sizes.c: $(srcdir)/ext/rbconfig/sizeof/depend \
 	$(Q) $(CHDIR) $(@D) && $(exec) $(MAKE) -f depend $(MFLAGS) \
 		Q=$(Q) ECHO=$(ECHO) top_srcdir=../../.. srcdir=. VPATH=../../.. RUBY="$(BASERUBY)"
 
+## rujit
+jit.$(OBJEXT): {$(VPATH)}jit.c {$(VPATH)}jit.h {$(VPATH)}jit_cgen_cmd.h \
+	{$(VPATH)}insns.def lir.c yarv2lir.c jit_prelude.c \
+	{$(VPATH)}jit_config.h
+
+jit_prelude.c: $(srcdir)/tool/generic_erb.rb $(srcdir)/jit_prelude.rb
+	$(ECHO) generating $@
+	$(Q) $(BASERUBY) $(srcdir)/tool/generic_erb.rb -I$(srcdir) -o $@ \
+		$(srcdir)/template/prelude.c.tmpl $(srcdir)/jit_prelude.rb
+
+lir.c: $(srcdir)/lir.def $(srcdir)/lir.rb $(srcdir)/lir_template.h
+	$(ECHO) creating $@
+	$(Q) $(BASERUBY) "$(srcdir)/lir.rb" $(srcdir)/lir.def $(srcdir)/lir_template.h > $@
+
+yarv2lir.c: {$(VPATH)}lir.def {$(VPATH)}yarv2lir.rb
+	$(ECHO) creating $@
+	$(Q) $(BASERUBY) "$(srcdir)/yarv2lir.rb" > $@
+
+jit_cgen_cmd.h: {$(VPATH)}ruby_jit.h {$(VPATH)}make_pch.rb \
+	{$(VPATH)}jit.c {$(VPATH)}jit.h \
+	{$(VPATH)}lir_template.h {$(VPATH)}vm_exec.h {$(VPATH)}vm_core.h \
+	$(PROBES_H_INCLUDES) \
+	{$(VPATH)}probes.h
+	$(Q) $(BASERUBY) "$(srcdir)/make_pch.rb" . $(srcdir) $(CC) $(arch) > $@
+
 ##
 
 run: fake miniruby$(EXEEXT) PHONY
@@ -1579,6 +1605,56 @@ iseq.$(OBJEXT): {$(VPATH)}util.h
 iseq.$(OBJEXT): {$(VPATH)}vm_core.h
 iseq.$(OBJEXT): {$(VPATH)}vm_debug.h
 iseq.$(OBJEXT): {$(VPATH)}vm_opts.h
+jit.$(OBJEXT): $(CCAN_DIR)/check_type/check_type.h
+jit.$(OBJEXT): $(CCAN_DIR)/container_of/container_of.h
+jit.$(OBJEXT): $(CCAN_DIR)/list/list.h
+jit.$(OBJEXT): $(CCAN_DIR)/str/str.h
+jit.$(OBJEXT): $(hdrdir)/ruby.h
+jit.$(OBJEXT): $(top_srcdir)/include/ruby.h
+jit.$(OBJEXT): $(top_srcdir)/include/ruby/ruby.h
+jit.$(OBJEXT): {$(VPATH)}config.h
+jit.$(OBJEXT): {$(VPATH)}defines.h
+jit.$(OBJEXT): {$(VPATH)}encoding.h
+jit.$(OBJEXT): {$(VPATH)}gc.h
+jit.$(OBJEXT): {$(VPATH)}id.h
+jit.$(OBJEXT): {$(VPATH)}insns.inc
+jit.$(OBJEXT): {$(VPATH)}insns_info.inc
+jit.$(OBJEXT): {$(VPATH)}intern.h
+jit.$(OBJEXT): {$(VPATH)}internal.h
+jit.$(OBJEXT): {$(VPATH)}io.h
+jit.$(OBJEXT): {$(VPATH)}iseq.h
+jit.$(OBJEXT): {$(VPATH)}jit.c
+jit.$(OBJEXT): {$(VPATH)}jit.h
+jit.$(OBJEXT): {$(VPATH)}jit_args.h
+jit.$(OBJEXT): {$(VPATH)}jit_config.h
+jit.$(OBJEXT): {$(VPATH)}jit_core.h
+jit.$(OBJEXT): {$(VPATH)}jit_dump.h
+jit.$(OBJEXT): {$(VPATH)}jit_optimize.h
+jit.$(OBJEXT): {$(VPATH)}jit_codegen.h
+jit.$(OBJEXT): {$(VPATH)}jit_hashmap.h
+jit.$(OBJEXT): {$(VPATH)}jit_internal.h
+jit.$(OBJEXT): {$(VPATH)}jit_profile.h
+jit.$(OBJEXT): {$(VPATH)}jit_record.h
+jit.$(OBJEXT): {$(VPATH)}jit_ruby_api.h
+jit.$(OBJEXT): {$(VPATH)}jit_utils.h
+jit.$(OBJEXT): {$(VPATH)}lir_template.h
+jit.$(OBJEXT): {$(VPATH)}method.h
+jit.$(OBJEXT): {$(VPATH)}missing.h
+jit.$(OBJEXT): {$(VPATH)}node.h
+jit.$(OBJEXT): {$(VPATH)}oniguruma.h
+jit.$(OBJEXT): {$(VPATH)}probes.h
+jit.$(OBJEXT): {$(VPATH)}ruby_atomic.h
+jit.$(OBJEXT): {$(VPATH)}ruby_jit.h
+jit.$(OBJEXT): {$(VPATH)}st.h
+jit.$(OBJEXT): {$(VPATH)}subst.h
+jit.$(OBJEXT): {$(VPATH)}thread_$(THREAD_MODEL).h
+jit.$(OBJEXT): {$(VPATH)}thread_native.h
+jit.$(OBJEXT): {$(VPATH)}vm.h
+jit.$(OBJEXT): {$(VPATH)}vm_core.h
+jit.$(OBJEXT): {$(VPATH)}vm_debug.h
+jit.$(OBJEXT): {$(VPATH)}vm_exec.h
+jit.$(OBJEXT): {$(VPATH)}vm_insnhelper.h
+jit.$(OBJEXT): {$(VPATH)}vm_opts.h
 load.$(OBJEXT): $(CCAN_DIR)/check_type/check_type.h
 load.$(OBJEXT): $(CCAN_DIR)/container_of/container_of.h
 load.$(OBJEXT): $(CCAN_DIR)/list/list.h
@@ -2314,6 +2390,7 @@ vm.$(OBJEXT): {$(VPATH)}intern.h
 vm.$(OBJEXT): {$(VPATH)}internal.h
 vm.$(OBJEXT): {$(VPATH)}io.h
 vm.$(OBJEXT): {$(VPATH)}iseq.h
+vm.$(OBJEXT): {$(VPATH)}jit.h
 vm.$(OBJEXT): {$(VPATH)}method.h
 vm.$(OBJEXT): {$(VPATH)}missing.h
 vm.$(OBJEXT): {$(VPATH)}node.h

@@ -18,6 +18,7 @@
 #include "eval_intern.h"
 #include "probes.h"
 #include "probes_helper.h"
+#include "jit.h"
 
 static inline VALUE *
 VM_EP_LEP(VALUE *ep)
@@ -1842,6 +1843,9 @@ ruby_vm_destruct(rb_vm_t *vm)
 	    rb_objspace_free(objspace);
 	}
 #endif
+	/* jit.c */
+	Destruct_rawjit();
+
 	/* after freeing objspace, you *can't* use ruby_xfree() */
 	ruby_mimfree(vm);
 	ruby_current_vm = 0;
@@ -2751,6 +2755,18 @@ Init_VM(void)
 	rb_define_global_const("TOPLEVEL_BINDING", rb_binding_new());
     }
     vm_init_redefined_flag();
+
+    {
+	/* jit.c */
+	extern void Init_rawjit(struct rb_vm_global_state *);
+	struct rb_vm_global_state state = {
+	    &ruby_vm_global_method_state,
+	    &ruby_vm_global_constant_state,
+	    &ruby_vm_class_serial,
+	    (short *)&ruby_vm_redefined_flag
+	};
+	Init_rawjit(&state);
+    }
 
     /* vm_backtrace.c */
     Init_vm_backtrace();

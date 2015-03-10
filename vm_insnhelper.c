@@ -833,7 +833,7 @@ vm_expandarray(rb_control_frame_t *cfp, VALUE ary, rb_num_t num, int flag)
 
 static VALUE vm_call_general(rb_thread_t *th, rb_control_frame_t *reg_cfp, rb_call_info_t *ci);
 
-static void
+void
 vm_search_method(rb_call_info_t *ci, VALUE recv)
 {
     VALUE klass = CLASS_OF(recv);
@@ -926,7 +926,7 @@ rb_equal_opt(VALUE obj1, VALUE obj2)
 static VALUE
 vm_call0(rb_thread_t*, VALUE, ID, int, const VALUE*, const rb_method_entry_t*, VALUE);
 
-static VALUE
+VALUE
 check_match(VALUE pattern, VALUE target, enum vm_check_match_type type)
 {
     switch (type) {
@@ -1930,7 +1930,7 @@ vm_search_superclass(rb_control_frame_t *reg_cfp, rb_iseq_t *iseq, VALUE sigval,
     return 0;
 }
 
-static void
+void
 vm_search_super_method(rb_thread_t *th, rb_control_frame_t *reg_cfp, rb_call_info_t *ci)
 {
     VALUE current_defined_class;
@@ -1975,9 +1975,12 @@ vm_search_super_method(rb_thread_t *th, rb_control_frame_t *reg_cfp, rb_call_inf
 	return;
     }
 
-    /* TODO: use inline cache */
     ci->me = rb_method_entry(ci->klass, ci->mid, &ci->defined_class);
     ci->call = vm_call_super_method;
+#if OPT_INLINE_METHOD_CACHE
+    ci->method_state = GET_GLOBAL_METHOD_STATE();
+    ci->class_serial = RCLASS_SERIAL(CLASS_OF(ci->recv));
+#endif
 
     while (iseq && !iseq->klass) {
 	iseq = iseq->parent_iseq;
