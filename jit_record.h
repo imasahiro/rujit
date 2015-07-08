@@ -1147,12 +1147,13 @@ static void record_opt_case_dispatch(lir_builder_t *builder, jit_event_t *e)
 
 static void record_opt_not(lir_builder_t *builder, jit_event_t *e)
 {
+    jit_snapshot_t *snapshot;
     CALL_INFO ci = (CALL_INFO)GET_OPERAND(1);
     VALUE recv = TOPN(0);
     extern VALUE rb_obj_not(VALUE obj);
     vm_search_method(ci, recv);
 
-    jit_snapshot_t *snapshot = take_snapshot(builder, REG_PC);
+    snapshot = take_snapshot(builder, REG_PC);
     if (check_cfunc(ci->me, rb_obj_not)) {
 	lir_t Rrecv = _TOPN(0);
 	EmitIR(GuardMethodCache, REG_PC, Rrecv, ci);

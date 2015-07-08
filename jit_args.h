@@ -600,7 +600,7 @@ setup_parameters_complex(lir_builder_t *builder, rb_thread_t *const th, const rb
 
     if (iseq->param.flags.has_kw) {
 	if (args->kw_argv != NULL) {
-	    asm volatile("int3");
+	    __asm__ volatile("int3");
 	    lir_arg.passed_entry = args->kw_entry;
 	    if (args_setup_kw_parameters(builder, &lir_arg, args->ci->kw_arg->keyword_len,
 	                                 args->ci->kw_arg->keywords, iseq) == 0) {
@@ -609,7 +609,7 @@ setup_parameters_complex(lir_builder_t *builder, rb_thread_t *const th, const rb
 	} else if (!NIL_P(keyword_hash)) {
 	    int kw_len = rb_long2int(RHASH_SIZE(keyword_hash));
 	    struct fill_values_arg arg;
-	    asm volatile("int3");
+	    __asm__ volatile("int3");
 	    /* copy kw_argv */
 	    arg.keys = args->kw_argv = ALLOCA_N(VALUE, kw_len * 2);
 	    arg.vals = arg.keys + kw_len;
@@ -725,7 +725,7 @@ vm_caller_setup_arg_kw(lir_builder_t *builder, rb_control_frame_t *cfp, rb_call_
     int i;
     lir_t entry[kw_len * 2];
 
-    asm volatile("int3");
+    __asm__ volatile("int3");
     for (i = kw_len - 1; i > 0; i--) {
 	lir_t key = emit_load_const(builder, ID2SYM(passed_keywords[i]));
 	entry[i * 2] = key;
