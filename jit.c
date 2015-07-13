@@ -708,8 +708,8 @@ static int is_end_of_trace(lir_builder_t *builder, jit_event_t *e)
     //    return 1;
     //}
     if (is_irregular_event(e)) {
+        jit_snapshot_t *snapshot;
 	e->reason = TRACE_ERROR_THROW;
-	jit_snapshot_t *snapshot;
 	snapshot = lir_builder_take_snapshot(builder, REG_PC);
 	if (JIT_DEBUG_VERBOSE) {
 	    fprintf(stderr, "exit trace : : throw error\n");
